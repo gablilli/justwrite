@@ -481,6 +481,23 @@
 }
 
 /*
+ * Bottom corners (including bottom-center, "sotto la barra"): the strip
+ * itself sits near the bottom edge, so a pop that always hangs `top: 100%`
+ * (downward) got pushed past the visible surface and could never actually
+ * open - the pen/highlighter panel and the eraser slider both looked dead.
+ * Flip the hang direction to open upward whenever the strip is parked on
+ * a bottom corner, where there is room to show it.
+ */
+.handwriting-mobile-tools.handwriting-corner-bottom-right .handwriting-slider-pop,
+.handwriting-mobile-tools.handwriting-corner-bottom-left .handwriting-slider-pop,
+.handwriting-mobile-tools.handwriting-corner-bottom-center .handwriting-slider-pop {
+	top: auto;
+	bottom: 100%;
+	margin-top: 0;
+	margin-bottom: 4px;
+}
+
+/*
  * Vertical by ROTATION, deliberately. Native vertical range inputs are a
  * compatibility minefield: chromium removed -webkit-appearance:
  * slider-vertical (129), writing-mode on range landed late everywhere, and
@@ -541,13 +558,31 @@
 .handwriting-color-swatch {
 	width: 22px;
 	height: 22px;
+	min-width: 22px;
+	min-height: 22px;
+	max-width: 22px;
+	max-height: 22px;
 	flex: none;
+	/* Grid items stretch to fill their cell by default; the container's
+	   justify-items/align-items: center should already stop that, but a
+	   plain <button> also carries the platform's native chrome (default
+	   padding, min-width) which on iPadOS Safari out-measured the 22px
+	   box and rendered every swatch as a squashed oval instead of a
+	   circle. Pinning min/max as well as width/height, resetting native
+	   appearance, and setting this item's own grid alignment makes the
+	   box exactly 22x22 regardless of ancestor or platform quirks. */
+	justify-self: center;
+	align-self: center;
 	box-sizing: border-box;
 	padding: 0;
+	margin: 0;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 50%;
 	box-shadow: none;
 	cursor: pointer;
+	-webkit-appearance: none;
+	appearance: none;
+	background-clip: padding-box;
 }
 
 .handwriting-color-swatch.is-current {
