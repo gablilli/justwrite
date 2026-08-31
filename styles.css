@@ -583,6 +583,15 @@
 	-webkit-appearance: none;
 	appearance: none;
 	background-clip: padding-box;
+	/* Belt-and-braces on top of the pinned width/height above: iPadOS
+	   Safari still out-measures a <button>'s intrinsic size inside a CSS
+	   grid cell in some builds and stretches it horizontally regardless of
+	   width/max-width (a known WebKit form-control-in-grid quirk), which
+	   is exactly the squashed-oval report (hardware, 2026-08-31).
+	   aspect-ratio ties height to whatever width WebKit ends up computing,
+	   so even if the box is stretched it stays a circle, never an oval. */
+	aspect-ratio: 1 / 1;
+	display: inline-block;
 }
 
 .handwriting-color-swatch.is-current {

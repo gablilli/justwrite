@@ -426,9 +426,17 @@ function synthArrow(tail: P, tip: P): InkPoint[] {
  * The shaft length gate matches MIN_PATH_LENGTH; a short flutter on a short
  * stroke is too ambiguous to classify as an arrow.
  */
-const ARROW_SHAFT_FRACTION = 0.15; // fraction of shaft length = "near an endpoint"
-const ARROW_FLUTTER_MIN = 0.07;    // min perp deviation fraction = arrowhead flutter
-const ARROW_FLUTTER_COUNT = 3;     // min points in the flutter cluster
+// Widened from the original 0.15/0.07/3 (hardware, 2026-08-31): real
+// arrowheads are drawn bigger and with fewer sampled points near the tip
+// than the original synthetic test fixtures assumed. A natural arrowhead
+// often runs 20-30% of the shaft length, not 15%, so those wing points
+// were landing in "shaftBody" and failing the straightness check instead
+// of ever reaching the flutter test; and pen prediction/smoothing upstream
+// (see Prediction.ts) softens the raw back-and-forth wobble, so 2 clearly
+// deviating points is a safer real-world bar than 3.
+const ARROW_SHAFT_FRACTION = 0.26; // fraction of shaft length = "near an endpoint"
+const ARROW_FLUTTER_MIN = 0.05;    // min perp deviation fraction = arrowhead flutter
+const ARROW_FLUTTER_COUNT = 2;     // min points in the flutter cluster
 
 function classifyArrow(body: readonly P[]): SnapResult | null {
 	if (body.length < 12) return null;

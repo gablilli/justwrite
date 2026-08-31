@@ -2969,6 +2969,12 @@ class InkOverlayPlugin {
 			// Live drag only translates coordinates in the store; the history
 			// op is pushed once at release, with the id list frozen there.
 			const before = this.selectionBounds();
+			// Snapshot the moved strokes' bbox BEFORE the mutation, so the
+			// spatial index can be relocated in O(moved) instead of paying
+			// for a full rebuild over every stroke in the note on every
+			// single drag frame (see StrokeIndex.relocate).
+			const moving = this.strokesHere().filter((s) => this.selection.hasStroke(s.id));
+			const oldBBoxes = new Map(moving.map((s) => [s.id, { ...s.bbox }]));
 			inlineInk.moveStrokes(path, this.selection.strokeIds, dx, dy);
 			this.dragTotal.dx += dx;
 			this.dragTotal.dy += dy;
@@ -2979,7 +2985,8 @@ class InkOverlayPlugin {
 			} else {
 				this.damage.addAll();
 			}
-			this.indexDirty = true;
+			this.strokeIndex.relocate(moving, oldBBoxes);
+			this.indexDirty = false;
 			this.scheduleRepaint("partial");
 			this.repaintPath(path);
 			this.redrawSelectionUI();
@@ -3083,7 +3090,12 @@ class InkOverlayPlugin {
 		// Live drag only translates coordinates in the store; the history op
 		// is pushed once at release with the total (the lasso drag's shape).
 		// Vertical only: the divider is a seam, not a joystick.
+		// Same O(moved) relocate as the lasso drag, instead of a full
+		// index rebuild every frame - see StrokeIndex.relocate.
+		const moving = this.strokesHere().filter((s) => this.spaceIds.includes(s.id));
+		const oldBBoxes = new Map(moving.map((s) => [s.id, { ...s.bbox }]));
 		inlineInk.moveStrokes(path, this.spaceIds, 0, dy);
+		this.strokeIndex.relocate(moving, oldBBoxes);
 		this.spaceTotalDy += dy;
 		this.spaceFromY = w.y;
 		// The line rides with the pen, leading the ink it is pushing: it stays

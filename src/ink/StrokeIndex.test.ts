@@ -63,4 +63,38 @@ describe("StrokeIndex", () => {
 		idx.rebuild([stroke("new", 0, 0)]);
 		expect(idx.query({ x: 0, y: 0, width: 20, height: 20 }).map((s) => s.id)).toEqual(["new"]);
 	});
+
+	describe("relocate", () => {
+		it("finds a moved stroke at its new bucket and not its old one", () => {
+			const idx = new StrokeIndex();
+			const moved = stroke("moved", 5, 5);
+			const still = stroke("still", 5, 5);
+			idx.rebuild([moved, still]);
+			const oldBBoxes = new Map([["moved", { ...moved.bbox }]]);
+			// Mutate in place, same object identity - mirrors what
+			// translateStroke() does to the real store's strokes.
+			moved.bbox = { x: 5 + BUCKET_WORLD * 3, y: 5, width: 10, height: 10 };
+			idx.relocate([moved], oldBBoxes);
+
+			expect(idx.query({ x: 0, y: 0, width: 20, height: 20 }).map((s) => s.id)).toEqual([
+				"still",
+			]);
+			expect(
+				idx
+					.query({ x: BUCKET_WORLD * 3, y: 0, width: 20, height: 20 })
+					.map((s) => s.id)
+			).toEqual(["moved"]);
+		});
+
+		it("only touches the strokes passed in, leaving the rest indexed", () => {
+			const idx = new StrokeIndex();
+			const a = stroke("a", 5, 5);
+			const b = stroke("b", 200, 200);
+			idx.rebuild([a, b]);
+			idx.relocate([a], new Map([["a", { ...a.bbox }]]));
+			expect(idx.query({ x: 190, y: 190, width: 30, height: 30 }).map((s) => s.id)).toEqual([
+				"b",
+			]);
+		});
+	});
 });
