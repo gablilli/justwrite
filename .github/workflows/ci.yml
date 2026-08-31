@@ -34,6 +34,8 @@ jobs:
         with:
           node-version: 20
           cache: npm
+
+      - run: npm ci
       - name: package release assets
         run: npm run release
       - name: upload release assets
