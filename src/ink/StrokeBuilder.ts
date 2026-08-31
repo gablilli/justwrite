@@ -43,6 +43,11 @@ export class StrokeBuilder {
 		return this.points[this.points.length - 1];
 	}
 
+	/** Read-only view of accumulated points, for live snap preview. */
+	get currentPoints(): readonly InkPoint[] {
+		return this.points;
+	}
+
 	start(now: number): void {
 		this.startedAt = now;
 		this.points = [];

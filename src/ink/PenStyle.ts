@@ -43,6 +43,40 @@ export const HIGHLIGHTER_ALPHA = 0.35;
 export const NO_PRESSURE = 0.5;
 
 /**
+ * Width multiplier from Apple Pencil (or any pen that reports tiltX/tiltY).
+ *
+ * tiltX and tiltY are the PointerEvent angles in degrees from the surface
+ * plane along each axis (-90..+90, sign indicates direction). Combining them
+ * gives the altitude angle of the nib: 90° = perfectly vertical (like a
+ * ballpoint held straight up), 0° = lying flat.
+ *
+ * A real brush or fountain pen is widest when held obliquely, because more
+ * of the tip makes contact with the paper. We mirror that:
+ *
+ *   altitude 90° (vertical)    → factor 1.0   (no widening)
+ *   altitude  0° (flat/oblique)→ factor 1 + TILT_MAX_BOOST  (widest)
+ *
+ * TILT_MAX_BOOST is tuned so that fully-tilted Pencil strokes read as
+ * deliberately wider without swamping the pressure signal.
+ *
+ * If tiltX/tiltY are both 0 (device doesn't report tilt, or pen is
+ * perfectly vertical) the function returns 1.0 so nothing changes.
+ */
+const TILT_MAX_BOOST = 0.6; // fully oblique → 60% wider than vertical
+
+export function tiltFactor(tiltX: number | undefined, tiltY: number | undefined): number {
+	if (!tiltX && !tiltY) return 1;
+	const tx = (tiltX ?? 0) * (Math.PI / 180);
+	const ty = (tiltY ?? 0) * (Math.PI / 180);
+	// altitude = arcsin of the vertical component of the unit nib vector.
+	// When tiltX=tiltY=0 altitude=π/2 (vertical); when either ±90 altitude→0.
+	const sinAlt = Math.cos(tx) * Math.cos(ty);
+	// sinAlt = 1 when vertical, 0 when horizontal.
+	// We want factor = 1 + TILT_MAX_BOOST * (1 - sinAlt).
+	return 1 + TILT_MAX_BOOST * (1 - Math.max(0, sinAlt));
+}
+
+/**
  * Pressure sensitivity, off for anyone who wants an even line.
  *
  * It pins pressure rather than switching the width law off. Speed thinning

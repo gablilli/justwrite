@@ -101,6 +101,12 @@ export class TailRenderer {
 	 * caught. Both take world coordinates and are redrawn whenever the camera
 	 * moves, which is what keeps a selection glued to its contents through pan
 	 * and zoom.
+	 *
+	 * Performance on iPad: when the polygon grows past ~200 vertices the
+	 * per-pointermove cost of rebuilding the full path is noticeable (O(n) path
+	 * construction + clearAll every event). For rendering only we stride-sample
+	 * the array so the drawn polyline stays under ~200 points; the full-
+	 * resolution array is untouched and still used for the actual selection test.
 	 */
 	drawLasso(cam: CameraState, world: readonly Point2[], color: string): void {
 		if (world.length < 2) return;
@@ -110,10 +116,17 @@ export class TailRenderer {
 		ctx.lineWidth = 1.5;
 		ctx.setLineDash([6, 4]);
 		ctx.beginPath();
+
+		const RENDER_MAX = 200;
+		const stride = world.length > RENDER_MAX ? Math.ceil(world.length / RENDER_MAX) : 1;
+
 		ctx.moveTo((world[0]!.x - cam.x) * cam.zoom, (world[0]!.y - cam.y) * cam.zoom);
-		for (let i = 1; i < world.length; i++) {
+		for (let i = stride; i < world.length; i += stride) {
 			ctx.lineTo((world[i]!.x - cam.x) * cam.zoom, (world[i]!.y - cam.y) * cam.zoom);
 		}
+		// Always include the most recent vertex so the tip tracks the pen.
+		const last = world[world.length - 1]!;
+		ctx.lineTo((last.x - cam.x) * cam.zoom, (last.y - cam.y) * cam.zoom);
 		ctx.closePath();
 		ctx.stroke();
 		ctx.restore();

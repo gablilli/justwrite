@@ -103,7 +103,7 @@ import { embedInkLayerCount, embedInkPrintSwaps } from "./EmbedInk";
 import { notifyInkChanged } from "./InkEvents";
 import { DamageLedger } from "../ink/DamageLedger";
 import { StrokeIndex } from "../ink/StrokeIndex";
-import { DWELL_MS, snapStroke } from "../ink/ShapeSnap";
+import { DWELL_MS, snapPreview, snapStroke } from "../ink/ShapeSnap";
 
 const sessionStartMs = Date.now();
 import { anchoredScroll, pinchScale } from "./PinchScale";
@@ -661,6 +661,12 @@ class InkOverlayPlugin {
 	private hoverWatchdog: ReturnType<Window["setTimeout"]> | null = null;
 	/** Whether the metrics frame ticker is running; see startFrameTicker. */
 	private frameTicking = false;
+	/**
+	 * The live snapped shape shown while the pen is still held. Set when dwell
+	 * is confirmed mid-stroke; cleared on pen-up (where it becomes the real
+	 * committed stroke) or when the pen moves again.
+	 */
+	private liveSnapPreview: import("../ink/Stroke").InkStroke | null = null;
 	/** Recent REAL samples, newest last: what prediction extrapolates from. */
 	private predReal: PenSample[] = [];
 	/** The tail drawn last event, kept only to score it against what arrived. */
@@ -1917,6 +1923,13 @@ class InkOverlayPlugin {
 				this.rawLastMoveT = s.timestamp;
 				this.rawLastMoveX = s.x;
 				this.rawLastMoveY = s.y;
+				// Pen moved again after a dwell: discard the live preview so the
+				// user can correct the stroke before re-triggering snap.
+				if (this.liveSnapPreview) {
+					this.liveSnapPreview = null;
+					// Repaint committed layer to erase the ghost shape.
+					this.scheduleRepaint("partial");
+				}
 			}
 			const w = this.camera.screenToWorld(s.x, s.y);
 			const point = this.builder.add(
@@ -2146,13 +2159,19 @@ class InkOverlayPlugin {
 		this.strokePenGesture = false;
 		let strokes = builder?.finishReleaseFiltered() ?? [];
 		// Hold the pen still at the end and the figure snaps to the clean
-		// shape it meant (line, triangle, rectangle, circle, ellipse). The
-		// dwell is the request; an ordinary lift never gets here.
+		// shape it meant (line, triangle, rectangle, circle, ellipse, arrow).
+		// The dwell is the request; an ordinary lift never gets here.
+		// If liveSnapPreview fired during the dwell, reuse its result: the
+		// recognition already ran and the shape is already painted, so we
+		// just need to commit it to storage. If not (e.g. pen-up came in very
+		// quickly after a slow dwell), fall through to snapStroke as before.
 		let snapReplaced: InkStroke | null = null;
+		const pendingPreview = this.liveSnapPreview;
+		this.liveSnapPreview = null;
 		if (shapeSnapOn && strokes.length === 1) {
 			const heldMs = performance.now() - this.rawLastMoveT;
 			if (heldMs >= DWELL_MS) {
-				const snapped = snapStroke(strokes[0]!, true);
+				const snapped = pendingPreview ?? snapStroke(strokes[0]!, true);
 				if (snapped) {
 					// Kept for history: undo UN-SNAPS back to the freehand
 					// (replace inverts to replace), a second undo removes.
@@ -2815,6 +2834,26 @@ class InkOverlayPlugin {
 		const tick = (ts: number): void => {
 			if (!this.frameTicking) return;
 			metrics.recordFrame(ts);
+			// Live snap preview: once the pen has been still for DWELL_MS, try to
+			// recognise the shape mid-stroke and paint the clean outline on the tail
+			// canvas so it appears before the pen is lifted.
+			if (shapeSnapOn && this.builder && !this.liveSnapPreview) {
+				const heldMs = performance.now() - this.rawLastMoveT;
+				if (heldMs >= DWELL_MS) {
+					const pts = this.builder.currentPoints;
+					if (pts.length >= 8) {
+						const style = this.activeStyle;
+						const preview = snapPreview(pts, "pen", style.color, style.baseWidth);
+						if (preview) {
+							this.liveSnapPreview = preview;
+							// Draw the clean shape on the committed canvas immediately so
+							// the user sees the result while still holding the pen.
+							const cam = this.camera.snapshot;
+							drawStroke(this.committedCtxFor("pen"), cam, preview, undefined, false);
+						}
+					}
+				}
+			}
 			this.winRef.requestAnimationFrame(tick);
 		};
 		this.winRef.requestAnimationFrame(tick);

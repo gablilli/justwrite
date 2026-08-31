@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DWELL_MS, dwellStart, snapStroke } from "./ShapeSnap";
+import { DWELL_MS, dwellStart, snapPreview, snapStroke } from "./ShapeSnap";
 import { InkPoint, InkStroke, computeBBox } from "./Stroke";
 
 /** Deterministic jitter so the suite never flakes. */
@@ -266,3 +266,104 @@ describe("snapStroke", () => {
 		expect(s.id).not.toBe(raw.id);
 	});
 });
+
+// Helper: a straight shaft with noisy arrowhead flutter at one end.
+function arrowStroke(
+	x0: number, y0: number,
+	x1: number, y1: number,
+	flutterAmp = 8
+): InkPoint[] {
+	const n = 40;
+	const pts: InkPoint[] = [];
+	// Shaft: straight line from (x0,y0) to (x1,y1) with slight noise.
+	for (let i = 0; i < n; i++) {
+		const f = i / (n - 1);
+		pts.push({
+			x: x0 + (x1 - x0) * f + jitter(i, 1.2),
+			y: y0 + (y1 - y0) * f + jitter(i + 5, 1.2),
+			pressure: 0.4,
+			t: i * 10,
+		});
+	}
+	// Arrowhead: back-and-forth flutter perpendicular to the shaft near the tip.
+	const dx = x1 - x0, dy = y1 - y0;
+	const len = Math.hypot(dx, dy);
+	const nx = -dy / len, ny = dx / len; // perpendicular unit vector
+	for (let k = 0; k < 8; k++) {
+		const sign = k % 2 === 0 ? 1 : -1;
+		pts.push({
+			x: x1 + nx * sign * flutterAmp * (1 - k / 8) + jitter(n + k, 0.5),
+			y: y1 + ny * sign * flutterAmp * (1 - k / 8) + jitter(n + k + 3, 0.5),
+			pressure: 0.4,
+			t: (n + k) * 10,
+		});
+	}
+	return pts;
+}
+
+describe("arrow snap", () => {
+	it("a straight stroke with tip flutter snaps to an arrow", () => {
+		const pts = withDwell(arrowStroke(0, 0, 200, 0));
+		const s = snapStroke(strokeOf(pts));
+		expect(s).not.toBe(null);
+		// An arrow has points that go back toward the shaft after reaching the tip:
+		// the arrowhead wings produce x-values less than the maximum x.
+		const xs = s!.points.map((p) => p.x);
+		const maxX = Math.max(...xs);
+		// At least one point should be noticeably behind the tip (wing going back).
+		const behindTip = xs.filter((x) => maxX - x > 5).length;
+		expect(behindTip).toBeGreaterThan(0);
+	});
+
+	it("the arrow tip is closer to the flutter end", () => {
+		// Shaft goes left→right; flutter is at the right end (x=200).
+		const pts = withDwell(arrowStroke(0, 50, 200, 50));
+		const s = snapStroke(strokeOf(pts));
+		expect(s).not.toBe(null);
+		// The rightmost arrowhead point should be near x=200.
+		const maxX = Math.max(...s!.points.map((p) => p.x));
+		expect(maxX).toBeGreaterThan(160);
+	});
+
+	it("a straight line without flutter is still a line, not an arrow", () => {
+		// Pure straight stroke, no flutter at either end.
+		const pts: InkPoint[] = [];
+		for (let i = 0; i <= 40; i++) {
+			pts.push({ x: i * 5, y: 0 + jitter(i, 1.5), pressure: 0.4, t: i * 10 });
+		}
+		const s = snapStroke(strokeOf(withDwell(pts)));
+		expect(s).not.toBe(null);
+		// Should be a line, not an arrow: no perpendicular flutter.
+		// The snapped stroke for a line has all y values very close to 0.
+		for (const p of s!.points) {
+			expect(Math.abs(p.y)).toBeLessThan(3);
+		}
+	});
+
+	it("snapPreview returns a shape mid-stroke (before pen-up)", () => {
+		// snapPreview operates on raw InkPoint arrays without a dwell tail.
+		const raw: InkPoint[] = [];
+		for (let i = 0; i <= 60; i++) {
+			const a = (i / 60) * Math.PI * 2;
+			raw.push({ x: 100 + Math.cos(a) * 40, y: 100 + Math.sin(a) * 40, pressure: 0.4, t: i * 12 });
+		}
+		const preview = snapPreview(raw, "pen", "#000", 2);
+		expect(preview).not.toBe(null);
+		expect(preview!.tool).toBe("pen");
+		expect(preview!.color).toBe("#000");
+		expect(preview!.width).toBe(2);
+	});
+
+	it("snapPreview returns null for an unrecognisable scribble", () => {
+		const raw: InkPoint[] = [];
+		for (let i = 0; i <= 40; i++) {
+			raw.push({
+				x: i * 3 + Math.sin(i * 1.7) * 30,
+				y: Math.cos(i * 2.3) * 40,
+				pressure: 0.4, t: i * 10,
+			});
+		}
+		expect(snapPreview(raw, "pen", "#000", 2)).toBe(null);
+	});
+});
+

@@ -16,7 +16,7 @@ import {
 	shapedHalfWidths,
 } from "./InkShape";
 import { flattenStroke } from "./Ribbon";
-import { DEFAULT_PEN, widthForPressure } from "./PenStyle";
+import { DEFAULT_PEN, tiltFactor, widthForPressure } from "./PenStyle";
 import { InkPoint } from "./Stroke";
 
 /** Shaping disabled through its own parameters: must equal the plain law. */
@@ -155,5 +155,59 @@ describe("IncrementalShaper — the wet layer speaks the same law", () => {
 		const hws: number[] = [];
 		for (let i = 1; i < pts.length; i++) hws.push(inc.push(DEFAULT_PEN, pts[i]!));
 		expect(hws[0]!).toBeLessThan(hws[hws.length - 1]!);
+	});
+});
+
+
+describe("tiltFactor — Apple Pencil inclination → width", () => {
+	it("returns 1.0 when tilt is absent (no tilt reported)", () => {
+		expect(tiltFactor(undefined, undefined)).toBe(1);
+	});
+
+	it("returns 1.0 when pen is perfectly vertical (tiltX=tiltY=0)", () => {
+		expect(tiltFactor(0, 0)).toBe(1);
+	});
+
+	it("returns more than 1 when pen is oblique (any nonzero tilt)", () => {
+		expect(tiltFactor(45, 0)).toBeGreaterThan(1);
+		expect(tiltFactor(0, 45)).toBeGreaterThan(1);
+		expect(tiltFactor(45, 45)).toBeGreaterThan(1);
+	});
+
+	it("maximum boost at extreme oblique (tiltX or tiltY → 90)", () => {
+		const f90 = tiltFactor(89, 0);
+		const f45 = tiltFactor(45, 0);
+		expect(f90).toBeGreaterThan(f45);
+	});
+
+	it("is symmetric: tiltX=45 and tiltX=-45 give the same factor", () => {
+		expect(tiltFactor(45, 0)).toBeCloseTo(tiltFactor(-45, 0), 10);
+	});
+
+	it("shapedHalfWidths produces wider hw with oblique tilt on all points", () => {
+		const makePoints = (tiltX: number): InkPoint[] =>
+			Array.from({ length: 15 }, (_, i) => ({
+				x: i * 3, y: 0, pressure: 0.5, t: i * 10, tiltX, tiltY: 0,
+			}));
+		const vertical  = shapedHalfWidths(makePoints(0),  DEFAULT_PEN, { ...PEN_SHAPE, taperWidths: 0, tipFloor: 1 });
+		const oblique   = shapedHalfWidths(makePoints(60), DEFAULT_PEN, { ...PEN_SHAPE, taperWidths: 0, tipFloor: 1 });
+		// Every sample should be wider when the pencil is tilted.
+		for (let i = 0; i < vertical.length; i++) {
+			expect(oblique[i]!).toBeGreaterThan(vertical[i]!);
+		}
+	});
+
+	it("IncrementalShaper.push is also wider with oblique tilt", () => {
+		const makePoint = (tiltX: number, i: number): InkPoint =>
+			({ x: i * 3, y: 0, pressure: 0.5, t: i * 10, tiltX, tiltY: 0 });
+
+		const incV = new IncrementalShaper({ ...PEN_SHAPE, tipFloor: 1, taperWidths: 0 });
+		const incO = new IncrementalShaper({ ...PEN_SHAPE, tipFloor: 1, taperWidths: 0 });
+		incV.reset(makePoint(0,  0), DEFAULT_PEN);
+		incO.reset(makePoint(60, 0), DEFAULT_PEN);
+
+		const hwV = incV.push(DEFAULT_PEN, makePoint(0,  5));
+		const hwO = incO.push(DEFAULT_PEN, makePoint(60, 5));
+		expect(hwO).toBeGreaterThan(hwV);
 	});
 });

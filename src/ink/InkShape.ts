@@ -1,4 +1,4 @@
-import { PenStyle, widthForPressure } from "./PenStyle";
+import { PenStyle, tiltFactor, widthForPressure } from "./PenStyle";
 import { smoothSegments } from "./Smoothing";
 import { InkPoint } from "./Stroke";
 import { RibbonPt, flattenSegmentHw } from "./Ribbon";
@@ -113,7 +113,7 @@ export function shapedHalfWidths(
 			pHat += params.pressureAlpha * (pt.pressure - pHat);
 		}
 		const f = Math.max(params.minVelocityFactor, 1 / (1 + params.thinningK * vHat));
-		out.push((widthForPressure(style, pHat) / 2) * f);
+		out.push((widthForPressure(style, pHat) / 2) * f * tiltFactor(pt.tiltX, pt.tiltY));
 		prev = pt;
 	}
 	return out;
@@ -232,7 +232,7 @@ export class IncrementalShaper {
 			this.params.tipFloor
 		);
 		this.prev = pt;
-		this.lastHw = (widthForPressure(style, this.pHat) / 2) * f * taper;
+		this.lastHw = (widthForPressure(style, this.pHat) / 2) * f * taper * tiltFactor(pt.tiltX, pt.tiltY);
 		return this.lastHw;
 	}
 

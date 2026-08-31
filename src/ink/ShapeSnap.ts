@@ -33,7 +33,7 @@ const LINE_TOLERANCE = 0.08;
 /** Synthesized point spacing in world units. */
 const SYNTH_STEP = 3;
 
-export type SnappedKind = "line" | "triangle" | "rectangle" | "circle" | "ellipse";
+export type SnappedKind = "line" | "triangle" | "rectangle" | "circle" | "ellipse" | "arrow";
 
 export interface SnapResult {
 	kind: SnappedKind;
@@ -382,7 +382,130 @@ function polygonFitError(
 	return total / counted / diag;
 }
 
+/**
+ * Synthesize a clean arrow from tail A→B with a symmetric arrowhead at B.
+ * HEAD_RATIO: arrowhead arm length relative to shaft length.
+ * HEAD_ANGLE: half-opening angle of the arrowhead (radians).
+ */
+const ARROW_HEAD_RATIO = 0.22;
+const ARROW_HEAD_ANGLE = Math.PI / 6; // 30 °
+
+function synthArrow(tail: P, tip: P): InkPoint[] {
+	const shaftLen = dist(tail, tip);
+	const headLen = shaftLen * ARROW_HEAD_RATIO;
+	const angle = Math.atan2(tip.y - tail.y, tip.x - tail.x);
+	const leftWing: P = {
+		x: tip.x - headLen * Math.cos(angle - ARROW_HEAD_ANGLE),
+		y: tip.y - headLen * Math.sin(angle - ARROW_HEAD_ANGLE),
+	};
+	const rightWing: P = {
+		x: tip.x - headLen * Math.cos(angle + ARROW_HEAD_ANGLE),
+		y: tip.y - headLen * Math.sin(angle + ARROW_HEAD_ANGLE),
+	};
+	// Shaft, then left wing, back to tip, then right wing — one continuous path.
+	return [
+		...synthSegment(tail, tip),
+		...synthSegment(tip, leftWing),
+		...synthSegment(leftWing, tip),
+		...synthSegment(tip, rightWing),
+	];
+}
+
+/**
+ * Arrow recognition for open strokes.
+ *
+ * Algorithm:
+ *  1. The two most-distant points of the stroke define the shaft axis.
+ *  2. The shaft body (points NOT near either endpoint) must be straight
+ *     within LINE_TOLERANCE (same as the line recognizer).
+ *  3. One endpoint must show a "flutter" cluster — a group of points that
+ *     deviate PERPENDICULARLY from the shaft by at least ARROW_FLUTTER_MIN
+ *     (fraction of shaft length). That cluster is the arrowhead wobble; its
+ *     centroid identifies which end is the tip.
+ *
+ * The shaft length gate matches MIN_PATH_LENGTH; a short flutter on a short
+ * stroke is too ambiguous to classify as an arrow.
+ */
+const ARROW_SHAFT_FRACTION = 0.15; // fraction of shaft length = "near an endpoint"
+const ARROW_FLUTTER_MIN = 0.07;    // min perp deviation fraction = arrowhead flutter
+const ARROW_FLUTTER_COUNT = 3;     // min points in the flutter cluster
+
+function classifyArrow(body: readonly P[]): SnapResult | null {
+	if (body.length < 12) return null;
+
+	// 1. Find the two most-distant points — they define the shaft axis.
+	let shaftA = body[0]!;
+	let shaftB = body[body.length - 1]!;
+	let maxD = 0;
+	for (let i = 0; i < body.length; i++) {
+		for (let j = i + 1; j < body.length; j++) {
+			const d = dist(body[i]!, body[j]!);
+			if (d > maxD) { maxD = d; shaftA = body[i]!; shaftB = body[j]!; }
+		}
+	}
+	const shaftLen = maxD;
+	if (shaftLen < MIN_PATH_LENGTH) return null;
+
+	// 2. Points near shaftA or shaftB (within ARROW_SHAFT_FRACTION of
+	//    shaft length from either endpoint) form the endpoint clusters; the
+	//    rest must be straight.
+	const endThresh = shaftLen * ARROW_SHAFT_FRACTION;
+	const shaftBody: P[] = [];
+	const nearA: P[] = [];
+	const nearB: P[] = [];
+	for (const p of body) {
+		const dA = dist(p, shaftA);
+		const dB = dist(p, shaftB);
+		if (dA <= endThresh) { nearA.push(p); continue; }
+		if (dB <= endThresh) { nearB.push(p); continue; }
+		shaftBody.push(p);
+	}
+	if (shaftBody.length < 4) return null;
+
+	// 3. Shaft body straightness (same formula as classifyOpen).
+	let worstShaft = 0;
+	for (const p of shaftBody) {
+		const d = Math.abs(
+			(shaftB.x - shaftA.x) * (shaftA.y - p.y) -
+			(shaftA.x - p.x) * (shaftB.y - shaftA.y)
+		) / shaftLen;
+		if (d > worstShaft) worstShaft = d;
+	}
+	if (worstShaft > shaftLen * LINE_TOLERANCE * 1.5) return null;
+
+	// 4. Check each endpoint cluster for sufficient perpendicular flutter.
+	//    "Flutter" = points that deviate perpendicularly from the shaft axis
+	//    by more than ARROW_FLUTTER_MIN × shaft length.
+	function perpFlutterCount(cluster: readonly P[]): number {
+		let n = 0;
+		for (const p of cluster) {
+			const perp = Math.abs(
+				(shaftB.x - shaftA.x) * (shaftA.y - p.y) -
+				(shaftA.x - p.x) * (shaftB.y - shaftA.y)
+			) / shaftLen;
+			if (perp > shaftLen * ARROW_FLUTTER_MIN) n++;
+		}
+		return n;
+	}
+
+	const flutterA = perpFlutterCount(nearA);
+	const flutterB = perpFlutterCount(nearB);
+	const tipAtB = flutterB >= ARROW_FLUTTER_COUNT && flutterB >= flutterA;
+	const tipAtA = flutterA >= ARROW_FLUTTER_COUNT && flutterA > flutterB;
+	if (!tipAtA && !tipAtB) return null;
+
+	const tail = tipAtB ? shaftA : shaftB;
+	const tip  = tipAtB ? shaftB : shaftA;
+	return { kind: "arrow", points: synthArrow(tail, tip) };
+}
+
 function classifyOpen(body: readonly P[]): SnapResult | null {
+	// Try arrow first: an arrow is a strict superset of a line, so a line
+	// that happens to have flutter at one end would otherwise win the wrong
+	// shape. Arrow recognition short-circuits before line.
+	const arrow = classifyArrow(body);
+	if (arrow) return arrow;
+
 	const a = body[0]!;
 	const b = body[body.length - 1]!;
 	const len = dist(a, b);
@@ -497,6 +620,40 @@ export function diagnoseShape(points: readonly InkPoint[]): Record<string, unkno
 			.map(({ t }) => Math.round(t));
 	}
 	return out;
+}
+
+/**
+ * Live preview: run recognition against the points accumulated so far, with
+ * an EXTERNALLY confirmed dwell (rawLastMoveT age ≥ DWELL_MS). Returns the
+ * snapped InkStroke if a shape is recognizable, null otherwise.
+ *
+ * This is intentionally identical to snapStroke(…, true) but operates on a
+ * raw points array rather than a finished InkStroke, so the inline overlay
+ * can call it from the frame ticker without finishing the builder.
+ */
+export function snapPreview(
+	points: readonly InkPoint[],
+	tool: InkStroke["tool"],
+	color: string,
+	width: number
+): InkStroke | null {
+	if (points.length < 8) return null;
+	const body = [...points];
+	const len = pathLength(body);
+	if (len < MIN_PATH_LENGTH) return null;
+	const gap = dist(body[0]!, body[body.length - 1]!);
+	const closed = gap < len * CLOSURE_FRACTION;
+	const result = closed ? classifyClosed(body, gap / (len + gap)) : classifyOpen(body);
+	if (!result) return null;
+	return {
+		id: newStrokeId(),
+		tool,
+		color,
+		width,
+		points: result.points,
+		bbox: computeBBox(result.points, width * 2),
+		createdAt: Date.now(),
+	};
 }
 
 /**
