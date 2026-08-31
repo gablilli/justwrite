@@ -66,6 +66,8 @@ export interface MobileToolsHost {
 	hasInkSelection(): boolean;
 	/** The active tool's palette, for the swatch pop. */
 	palette(): ReadonlyArray<{ name: string; hex: string }>;
+	/** Set the active tool's color to an arbitrary hex string (validated). */
+	setInkColorHex(hex: string): void;
 }
 
 /**
@@ -190,19 +192,26 @@ const BUTTONS: ButtonSpec[] = [
  */
 let collapsedSession = false;
 
+interface ToolPanel {
+	pop: HTMLElement;
+	input: HTMLInputElement;
+	val: HTMLElement;
+	swatches: HTMLElement;
+	hexInput: HTMLInputElement;
+	hexSwatch: HTMLElement;
+	tool: "pen" | "highlighter";
+}
+
 export class MobileTools {
 	private el: HTMLElement;
 	private buttons: Array<{ el: HTMLElement; spec: ButtonSpec }> = [];
 	private slider!: { pop: HTMLElement; input: HTMLInputElement; val: HTMLElement };
-	private penSlider!: { pop: HTMLElement; input: HTMLInputElement; val: HTMLElement };
-	private hlSlider!: { pop: HTMLElement; input: HTMLInputElement; val: HTMLElement };
-	/** Which nib's size slider is open; tap the active tool again to toggle. */
+	private penPanel!: ToolPanel;
+	private hlPanel!: ToolPanel;
+	/** Which nib's panel (size + color) is open; tap the active tool again to toggle. */
 	private openInkSlider: "pen" | "highlighter" | null = null;
-	/** Whether the color swatch pop is open. */
-	private colorsOpen = false;
 	private strokeChip!: HTMLElement;
 	private reticleChip!: HTMLElement;
-	private colorPop!: HTMLElement;
 
 	private pill: HTMLElement;
 
@@ -250,23 +259,22 @@ export class MobileTools {
 			b.addEventListener("click", (ev) => {
 				ev.preventDefault();
 				// The GoodNotes pattern: tapping the tool you are already
-				// holding opens its options instead of re-picking it.
+				// holding opens its options instead of re-picking it. The
+				// palette button is an alias for the same thing: it opens
+				// whichever nib is currently active, since color and size
+				// now live in one panel per nib rather than a separate pop.
 				const nib =
 					spec.commandId === "handwriting:inline-tool-pen"
 						? "pen"
 						: spec.commandId === "handwriting:inline-tool-highlighter"
 							? "highlighter"
-							: null;
-				if (nib && spec.isActive?.(this.host)) {
+							: spec.commandId === "handwriting:ink-color-cycle"
+								? (this.host.activeTool() as "pen" | "highlighter")
+								: null;
+				if (nib && (spec.isActive?.(this.host) ?? true)) {
 					this.openInkSlider = this.openInkSlider === nib ? null : nib;
-				} else if (spec.commandId === "handwriting:ink-color-cycle") {
-					// The palette button opens SWATCHES: picking a color you
-					// can see beats cycling one you cannot.
-					this.colorsOpen = !this.colorsOpen;
-					this.openInkSlider = null;
 				} else {
 					this.openInkSlider = null;
-					this.colorsOpen = false;
 					this.host.exec(spec.commandId);
 				}
 				this.refresh();
@@ -332,12 +340,26 @@ export class MobileTools {
 			this.strokeChip = chip("Stroke", true);
 			this.reticleChip = chip("Reticle", false);
 		}
-		this.penSlider = dropSlider("Pen size", "0.3", "3", "0.05", (v) => `${v.toFixed(2)}x`, (v, c) =>
-			this.host.setInkSizeMult("pen", v, c)
+		// Pen and highlighter each get ONE combined panel: a horizontal size
+		// slider up top, the palette below it as an evenly-sized grid (never
+		// stretched - each swatch is a fixed square, the grid only centers
+		// them), and a hex field for any color the palette does not offer.
+		// It used to be two separate pops (a rotated vertical slider, and a
+		// palette pop reached only through a third button) that could not be
+		// open at once; tapping the tool you are holding now surfaces both.
+		this.penPanel = this.toolPanel(
+			"pen",
+			"Pen size",
+			"0.3",
+			"3",
+			"0.05",
+			(v) => `${v.toFixed(2)}x`,
+			(v, c) => this.host.setInkSizeMult("pen", v, c)
 		);
 		// The highlighter runs a narrower range: its base is already wide,
 		// and past 1.5x it stops being a highlighter and starts being paint.
-		this.hlSlider = dropSlider(
+		this.hlPanel = this.toolPanel(
+			"highlighter",
 			"Highlighter size",
 			"0.25",
 			"1.5",
@@ -345,9 +367,66 @@ export class MobileTools {
 			(v) => `${v.toFixed(2)}x`,
 			(v, c) => this.host.setInkSizeMult("highlighter", v, c)
 		);
-		this.colorPop = this.el.createDiv({ cls: "handwriting-slider-pop handwriting-color-pop" });
 		this.refreshNow();
 		this.setCollapsed(collapsedSession);
+	}
+
+	/**
+	 * Build one nib's combined panel: horizontal size slider, color grid,
+	 * hex field. Pulled out of the constructor because pen and highlighter
+	 * are otherwise identical apart from their range and command.
+	 */
+	private toolPanel(
+		tool: "pen" | "highlighter",
+		aria: string,
+		min: string,
+		max: string,
+		step: string,
+		format: (v: number) => string,
+		onValue: (v: number, commit: boolean) => void
+	): ToolPanel {
+		const pop = this.el.createDiv({ cls: "handwriting-slider-pop handwriting-tool-panel" });
+		const sizeRow = pop.createDiv({ cls: "handwriting-hslider-row" });
+		const input = sizeRow.createEl("input", {
+			cls: "handwriting-hslider",
+			attr: { type: "range", min, max, step, "aria-label": aria },
+		});
+		const val = sizeRow.createDiv({ cls: "handwriting-slider-val" });
+		const show = () => val.setText(format(Number(input.value)));
+		input.addEventListener("input", () => {
+			show();
+			onValue(Number(input.value), false);
+		});
+		input.addEventListener("change", () => onValue(Number(input.value), true));
+		show();
+		pop.createDiv({ cls: "handwriting-tool-panel-divider" });
+		const swatches = pop.createDiv({ cls: "handwriting-color-grid" });
+		const hexRow = pop.createDiv({ cls: "handwriting-hex-row" });
+		const hexSwatch = hexRow.createDiv({ cls: "handwriting-hex-preview" });
+		const hexInput = hexRow.createEl("input", {
+			cls: "handwriting-hex-input",
+			attr: {
+				type: "text",
+				maxlength: "7",
+				placeholder: "#rrggbb",
+				"aria-label": `${aria.replace(" size", "")} custom color`,
+			},
+		});
+		const commitHex = () => {
+			const hex = hexInput.value.trim();
+			if (!hex) return;
+			this.host.setInkColorHex(hex);
+			this.refresh();
+		};
+		hexInput.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+		hexInput.addEventListener("change", commitHex);
+		hexInput.addEventListener("keydown", (ev) => {
+			if (ev.key === "Enter") {
+				ev.preventDefault();
+				commitHex();
+			}
+		});
+		return { pop, input, val, swatches, hexInput, hexSwatch, tool };
 	}
 
 	private refreshQueued = false;
@@ -381,91 +460,82 @@ export class MobileTools {
 		// Hang a drop-down under its button, measured live so it survives
 		// the strip wrapping on narrow screens.
 		const hangUnder = (
-			slider: { pop: HTMLElement; input: HTMLInputElement; val: HTMLElement },
+			pop: HTMLElement,
 			commandId: string,
-			show: boolean,
-			value: number,
-			format: (v: number) => string
+			show: boolean
 		) => {
-			slider.pop.toggleClass("is-showing", show);
+			pop.toggleClass("is-showing", show);
 			if (!show) return;
-			slider.input.value = String(value);
-			slider.val.setText(format(value));
 			const btn = this.buttons.find((b) => b.spec.commandId === commandId)?.el;
 			if (btn) {
 				const right = this.el.offsetWidth - btn.offsetLeft - btn.offsetWidth;
-				slider.pop.setCssStyles({ right: `${Math.max(0, right - 4)}px` });
+				pop.setCssStyles({ right: `${Math.max(0, right - 4)}px` });
 			}
 		};
 		const whole = this.host.eraserWholeStroke();
 		this.strokeChip.toggleClass("is-current", whole);
 		this.reticleChip.toggleClass("is-current", !whole);
-		hangUnder(
-			this.slider,
-			"handwriting:inline-tool-eraser",
-			this.host.eraserOn(),
-			this.host.eraserRadiusPx(),
-			(v) => `${v}px`
-		);
+		this.slider.input.value = String(this.host.eraserRadiusPx());
+		this.slider.val.setText(`${this.host.eraserRadiusPx()}px`);
+		hangUnder(this.slider.pop, "handwriting:inline-tool-eraser", this.host.eraserOn());
 		const nib = this.host.eraserOn() ? null : this.openInkSlider;
-		hangUnder(
-			this.penSlider,
-			"handwriting:inline-tool-pen",
-			nib === "pen" && this.host.activeTool() === "pen",
-			this.host.inkSizeMult("pen"),
-			(v) => `${v.toFixed(2)}x`
-		);
-		hangUnder(
-			this.hlSlider,
-			"handwriting:inline-tool-highlighter",
-			nib === "highlighter" && this.host.activeTool() === "highlighter",
-			this.host.inkSizeMult("highlighter"),
-			(v) => `${v.toFixed(2)}x`
-		);
-		// Swatches: rebuilt per refresh (the palette is tiny), current color
-		// ringed, each executes the existing per-name color command.
-		this.colorPop.toggleClass("is-showing", this.colorsOpen);
-		if (this.colorsOpen) {
-			this.colorPop.empty();
-			const current = this.host.activeColor();
-			for (const c of this.host.palette()) {
-				const sw = this.colorPop.createEl("button", {
-					cls: "handwriting-color-swatch",
-					attr: { "aria-label": c.name, type: "button" },
-				});
-				sw.setCssStyles({ backgroundColor: c.hex });
-				sw.toggleClass("is-current", c.hex.toLowerCase() === current.toLowerCase());
-				sw.addEventListener("pointerdown", (ev) => ev.preventDefault());
-				sw.addEventListener("click", (ev) => {
-					ev.preventDefault();
-					this.host.exec(`handwriting:ink-color-${c.name}`);
-					this.colorsOpen = false;
-					this.refresh();
-				});
+		// Each nib's panel carries its own size AND color together now, so
+		// one populate step covers both instead of a separate swatch pop.
+		const populate = (panel: ToolPanel, active: boolean) => {
+			const show = nib === panel.tool && this.host.activeTool() === panel.tool;
+			if (show) {
+				panel.input.value = String(this.host.inkSizeMult(panel.tool));
+				panel.val.setText(
+					`${this.host.inkSizeMult(panel.tool).toFixed(2)}x`
+				);
+				const current = active ? this.host.activeColor() : "";
+				panel.swatches.empty();
+				for (const c of this.host.palette()) {
+					const sw = panel.swatches.createEl("button", {
+						cls: "handwriting-color-swatch",
+						attr: { "aria-label": c.name, type: "button" },
+					});
+					sw.setCssStyles({ backgroundColor: c.hex });
+					sw.toggleClass("is-current", c.hex.toLowerCase() === current.toLowerCase());
+					sw.addEventListener("pointerdown", (ev) => ev.preventDefault());
+					sw.addEventListener("click", (ev) => {
+						ev.preventDefault();
+						this.host.exec(`handwriting:ink-color-${c.name}`);
+						this.refresh();
+					});
+				}
+				panel.hexSwatch.setCssStyles({ backgroundColor: current });
+				if (panel.hexInput.ownerDocument.activeElement !== panel.hexInput) {
+					panel.hexInput.value = current;
+				}
 			}
-			const btn = this.buttons.find(
-				(b) => b.spec.commandId === "handwriting:ink-color-cycle"
-			)?.el;
-			if (btn) {
-				const right = this.el.offsetWidth - btn.offsetLeft - btn.offsetWidth;
-				this.colorPop.setCssStyles({ right: `${Math.max(0, right - 4)}px` });
-			}
-		}
+			hangUnder(
+				panel.pop,
+				panel.tool === "pen"
+					? "handwriting:inline-tool-pen"
+					: "handwriting:inline-tool-highlighter",
+				show
+			);
+		};
+		populate(this.penPanel, this.host.activeTool() === "pen");
+		populate(this.hlPanel, this.host.activeTool() === "highlighter");
 	}
 
-	/** Writing started: nib-size drop-downs get out of the way. */
+	/** Writing started: nib panels get out of the way. */
 	closeInkSliders(): void {
-		if (this.openInkSlider === null && !this.colorsOpen) return;
+		if (this.openInkSlider === null) return;
 		this.openInkSlider = null;
-		this.colorsOpen = false;
 		this.refresh();
 	}
 
 	/**
-	 * The chrome steps aside while the pen is down: anything overlapping a
-	 * desynchronized canvas can demote it off the low-latency path, so
-	 * during a stroke nothing overlaps it at all. Pure class toggles - no
-	 * reads, nothing forced, safe inside the pen-down handler.
+	 * While the pen is down the strip stays visible in whatever state it was
+	 * already in - open or collapsed - but goes inert: `pointer-events: none`
+	 * so a stroke or an eraser scrub passing under it can never land on one
+	 * of its buttons mid-gesture. It used to hide outright, which made an
+	 * always-reachable toolbar flicker out and back on every single stroke.
+	 * Pure class toggle - no reads, nothing forced, safe inside the pen-down
+	 * handler.
 	 */
 	setInking(on: boolean): void {
 		this.el.toggleClass("is-inking", on);

@@ -60,11 +60,12 @@ export const PEN_SHAPE: ShapeParams = {
 	// nib WIDTH, so a fat nib tapers over a longer distance and a short stroke
 	// hits this cap: measured 2026-08-29, a 2.5x nib gave up 27% of a short
 	// stroke and 24% of a long one, which reads as the end being clipped off.
-	// At 0.18 it holds near 14% whatever the nib. The tip floor is deliberately
-	// NOT raised with it - ends are tips, not blunt caps, and there is a test
-	// that says so.
+	// At 0.18 it holds near 14% whatever the nib. The tip floor was raised
+	// from 0.12 (2026-08-30): a true near-zero tip read as "the stroke just
+	// stops" on most nib sizes rather than as a deliberate pen tip, so ends
+	// still narrow but land on a soft point instead of a needle.
 	taperMaxShare: 0.18,
-	tipFloor: 0.12,
+	tipFloor: 0.4,
 };
 
 // ---- global switch ----------------------------------------------------------

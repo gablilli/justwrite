@@ -66,7 +66,7 @@ import { diagnosticsEnabled } from "../diag/DiagSwitch";
 import { splitStrokeByCircle, strokesHitByCircle } from "../ink/Eraser";
 import { DEFAULT_PEN, HIGHLIGHTER_ALPHA, HIGHLIGHTER_PEN, PenStyle } from "../ink/PenStyle";
 import { clampInkSize } from "../ink/InkSize";
-import { colorsFor, getInkColorHex } from "../ink/InkColor";
+import { colorsFor, getInkColorHex, setInkColorHex as applyInkColorHex } from "../ink/InkColor";
 import { Point2 } from "../ink/Smoothing";
 import { BBox, InkStroke, InkTool, newStrokeId } from "../ink/Stroke";
 import { StrokeBuilder } from "../ink/StrokeBuilder";
@@ -397,6 +397,13 @@ let persistInkSize: ((tool: InkTool, mult: number) => void) | null = null;
 
 export function setPersistInkSize(fn: ((tool: InkTool, mult: number) => void) | null): void {
 	persistInkSize = fn;
+}
+
+/** Same shape again, for the strip's hex field: model applies, plugin persists. */
+let persistInkColor: ((tool: InkTool, hex: string) => void) | null = null;
+
+export function setPersistInkColor(fn: ((tool: InkTool, hex: string) => void) | null): void {
+	persistInkColor = fn;
 }
 
 export const inlineInk = new InlineInkStore();
@@ -858,12 +865,15 @@ class InkOverlayPlugin {
 		// Highlighter layers first: on the inline surface all ink paints above
 		// the Markdown (the editor owns the DOM under it), so the stacking that
 		// matters is highlight-under-PEN: a highlight never dims ink lines.
-		// The v0.6.0 rule is unchanged where it counts: strokes are painted
-		// OPAQUE and the whole layer carries one alpha, so a highlight crossing
-		// itself stays a single flat wash instead of double-blending into seams.
+		// v0.14: committed highlighter strokes now carry their OWN alpha
+		// (StrokeRenderer.drawStroke), one fill call each, so two separate
+		// passes over the same ink genuinely layer darker - real marker
+		// behavior. The committed canvas itself stays fully opaque; only the
+		// still-drawing WET preview keeps a flat layer-alpha, because it
+		// strokes many overlapping segments per gesture and per-segment alpha
+		// would seam within a single stroke.
 		this.highlightCanvas = canvas();
 		this.highlightWetCanvas = canvas();
-		this.highlightCanvas.setCssStyles({ opacity: String(HIGHLIGHTER_ALPHA) });
 		this.highlightWetCanvas.setCssStyles({ opacity: String(HIGHLIGHTER_ALPHA) });
 		this.committedCanvas = canvas();
 		this.wetCanvas = canvas();
@@ -1180,6 +1190,11 @@ class InkOverlayPlugin {
 			setInkSizeMult: (tool, mult, commit) => {
 				setInkSizeMult(tool as InkTool, mult);
 				if (commit) persistInkSize?.(tool as InkTool, getInkSizeMult(tool as InkTool));
+			},
+			setInkColorHex: (hex) => {
+				const tool = getInlineTool();
+				const applied = applyInkColorHex(tool, hex);
+				persistInkColor?.(tool, applied);
 			},
 		});
 		// A strip born mid-session starts in the configured corner, not the

@@ -1,4 +1,4 @@
-import { App, MarkdownRenderChild, Modal, Notice, Platform, Plugin, PluginSettingTab, Setting, TAbstractFile, TFile, WorkspaceLeaf, normalizePath } from "obsidian";
+import { App, MarkdownRenderChild, MarkdownView, Modal, Notice, Platform, Plugin, PluginSettingTab, Setting, TAbstractFile, TFile, WorkspaceLeaf, normalizePath } from "obsidian";
 import { CameraState } from "./camera/coordinates";
 import { HANDWRITING_PAGE_VIEW_TYPE, HandwritingHost, HandwritingPageView } from "./view/HandwritingPageView";
 import {
@@ -37,6 +37,7 @@ import {
 	setPenReticle,
 	setPersistEraserMode,
 	setPersistEraserRadius,
+	setPersistInkColor,
 	setPersistInkSize,
 	setShapeSnap,
 	setToolbarCorner,
@@ -68,7 +69,7 @@ import {
 import { diagnosticsEnabled, setDiagnosticsEnabled } from "./diag/DiagSwitch";
 import { mouseInkEnabled, setMouseInk } from "./inline/MouseInk";
 import { setPrediction } from "./inline/StrokePrediction";
-import { PaperStyle, nextPaperStyle, normalizePaperStyle, paperClass } from "./inline/Paper";
+import { PaperStyle, nextPaperStyle, normalizePaperStyle, normalizePaperStyleByPath, paperClass } from "./inline/Paper";
 import { inkToSvg } from "./ink/SvgExport";
 import { clipboardSize } from "./inline/InkClipboard";
 import {
@@ -152,8 +153,21 @@ interface HandwritingSettings {
 	/** Mouse-ink mode (v0.13.16): left mouse button draws like a pen tip. */
 	mouseInk: boolean;
 	strokePrediction: boolean;
-	/** Ruled paper background (v0.13.16): none, lines or grid. Per device. */
+	/**
+	 * Ruled paper background (v0.13.16): none, lines or grid. Independent
+	 * per note since 1.4 (paperStyleByPath); this is now only the DEFAULT
+	 * applied to a note that has never had its own paper style set.
+	 */
 	paperStyle: PaperStyle;
+	/**
+	 * Per-note override, keyed by file path (1.4). A note with no entry
+	 * here falls back to `paperStyle`. Keyed by path rather than the
+	 * handwriting-page-id frontmatter: ordinary notes carrying nothing but
+	 * inline ink have no such id, and paper is cosmetic enough that losing
+	 * the override across a rename is an acceptable trade for not forcing
+	 * every markdown note to grow frontmatter just to remember its ruling.
+	 */
+	paperStyleByPath: Record<string, PaperStyle>;
 	/** Pen tools strip (v0.13.16): auto (pen summons it), show, or hide. */
 	penTools: PenToolsMode;
 	/** What the eraser erases, globally (1.0.9): whole strokes by default. */
@@ -177,6 +191,7 @@ const DEFAULT_SETTINGS: HandwritingSettings = {
 	// about e-ink users rather than caution.
 	strokePrediction: false,
 	paperStyle: "none",
+	paperStyleByPath: {},
 	penTools: "auto",
 	eraserMode: "stroke",
 	penReticle: true,
@@ -365,10 +380,17 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 		this.addSettingTab(new HandwritingSettingTab(this.app, this));
 		// A popout is born without the paper class; stamp it as it opens.
 		this.registerEvent(
-			this.app.workspace.on("window-open", (_ww, win) => {
-				this.applyPaperTo(win.document, this.settings.paperStyle);
+			this.app.workspace.on("window-open", () => {
+				this.refreshAllPaper();
 			})
 		);
+		// A note switching in an existing pane, a new pane opening, or the
+		// active pane changing can all put a different note's ruling on
+		// screen; paper is cheap enough to just recompute broadly rather
+		// than track precisely which leaf changed.
+		this.registerEvent(this.app.workspace.on("file-open", () => this.refreshAllPaper()));
+		this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.refreshAllPaper()));
+		this.registerEvent(this.app.workspace.on("layout-change", () => this.refreshAllPaper()));
 		// Live reload: ink synced in from another device appears without a
 		// restart. One stat per open, quiet editor every second; the store
 		// adopts a changed sidecar only when nothing local is unsaved and no
@@ -485,13 +507,18 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 		});
 		this.addCommand({
 			id: "paper-cycle",
-			name: "Paper: cycle (none / lines / grid)",
+			name: "Paper: cycle (none / lines / grid) for this note",
 			callback: () => {
-				const next = nextPaperStyle(this.settings.paperStyle);
-				this.settings.paperStyle = next;
-				this.applyPaper(next);
+				const file = this.app.workspace.getActiveFile();
+				if (!file) {
+					new Notice("Handwriting: open a note first");
+					return;
+				}
+				const next = nextPaperStyle(this.paperStyleForFile(file));
+				this.settings.paperStyleByPath[file.path] = next;
+				this.refreshPaperForFile(file);
 				runDetached(this.saveData(this.settings), "save the paper style");
-				new Notice(`Handwriting: paper ${next}`);
+				new Notice(`Handwriting: paper ${next} for this note`);
 			},
 		});
 		this.addCommand({
@@ -1399,7 +1426,15 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 		return true;
 	}
 	onunload(): void {
-		this.applyPaper("none");
+		// Strip the ruling from every leaf rather than re-deriving "none":
+		// the plugin is going away, so nothing should be computing paper
+		// styles at all, just removing what it already put on the DOM.
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			leaf.view.containerEl.classList.remove(
+				"handwriting-paper-lines",
+				"handwriting-paper-grid"
+			);
+		});
 		document.body.classList.remove("handwriting-active-page");
 		destroyProbeMarkers();
 		// The print swap arms itself once per window and the guard is a WeakSet
@@ -1593,22 +1628,52 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 
 	// ---- settings -----------------------------------------------------------
 
-	/** One ruled style at a time: clear both classes, then set the one asked for. */
-	applyPaper(style: PaperStyle): void {
-		// Every window, not just the main one: popout editors carry their
-		// own document, and paper that stops at the popout border reads as
-		// broken. window-open (registered at load) stamps late arrivals.
-		const docs = new Set<Document>([document]);
-		this.app.workspace.iterateAllLeaves((leaf) => {
-			docs.add(leaf.view.containerEl.ownerDocument);
-		});
-		for (const doc of docs) this.applyPaperTo(doc, style);
+	/**
+	 * The style a given note rules itself with: its own override if it has
+	 * one, else the vault default. `null`/no file (nothing open, or a non-
+	 * markdown view) always reads as "none" - there is no note to rule.
+	 */
+	paperStyleForFile(file: TFile | null): PaperStyle {
+		if (!file) return "none";
+		return this.settings.paperStyleByPath[file.path] ?? this.settings.paperStyle;
 	}
 
-	private applyPaperTo(doc: Document, style: PaperStyle): void {
-		doc.body.classList.remove("handwriting-paper-lines", "handwriting-paper-grid");
-		const cls = paperClass(style);
-		if (cls) doc.body.classList.add(cls);
+	/**
+	 * Paper used to be one class on `document.body`: a single style for
+	 * every note in every pane, because it was a device preference, not a
+	 * document one. It is a document one now - each note remembers its own
+	 * ruling - so the class has to live on each LEAF's own view container
+	 * instead, where `styles.css`'s existing descendant selector still
+	 * finds it (`.handwriting-paper-lines .markdown-source-view
+	 * .cm-scroller`, no longer anchored to `body`).
+	 */
+	private applyPaperToLeaf(leaf: WorkspaceLeaf): void {
+		const view = leaf.view;
+		if (!(view instanceof MarkdownView)) return;
+		view.containerEl.classList.remove("handwriting-paper-lines", "handwriting-paper-grid");
+		const cls = paperClass(this.paperStyleForFile(view.file));
+		if (cls) view.containerEl.classList.add(cls);
+	}
+
+	/**
+	 * Re-derive and re-apply paper for every open markdown leaf, in every
+	 * window (popouts included - `iterateAllLeaves` already crosses window
+	 * boundaries). Cheap: a couple of classList calls per leaf, no disk or
+	 * metadata-cache reads, so any event that MIGHT have changed which note
+	 * a leaf shows can call this without worrying about cost.
+	 */
+	refreshAllPaper(): void {
+		this.app.workspace.iterateAllLeaves((leaf) => this.applyPaperToLeaf(leaf));
+	}
+
+	/** Re-apply paper only to leaves currently showing this one file. */
+	private refreshPaperForFile(file: TFile): void {
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			const view = leaf.view;
+			if (view instanceof MarkdownView && view.file?.path === file.path) {
+				this.applyPaperToLeaf(leaf);
+			}
+		});
 	}
 
 	/**
@@ -1681,6 +1746,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 			mouseInk: raw?.mouseInk === true,
 			strokePrediction: raw?.strokePrediction === true,
 			paperStyle: normalizePaperStyle(raw?.paperStyle),
+			paperStyleByPath: normalizePaperStyleByPath(raw?.paperStyleByPath),
 			penTools: normalizePenToolsMode(raw?.penTools),
 			// A fresh key on purpose: the old boolean keys carried the OLD
 			// default in every data.json (full-object saves), so reading
@@ -1711,9 +1777,18 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 			this.settings.inkSizes[tool] = clampInkSize(mult);
 			runDetached(this.saveData(this.settings), "save the ink size");
 		});
+		setPersistInkColor((tool, hex) => {
+			this.settings.inkColors[tool] = hex;
+			runDetached(this.saveData(this.settings), "save the ink color");
+		});
 		setMouseInk(this.settings.mouseInk);
 		setPrediction(this.settings.strokePrediction);
-		this.applyPaper(this.settings.paperStyle);
+		this.refreshAllPaper();
+		// Layout restoration is async at startup, so leaves that exist by the
+		// time this line runs may be a partial (or empty) set; run again once
+		// the saved layout has fully landed so every restored pane picks up
+		// its note's own ruling, not just whichever leaves were first.
+		this.app.workspace.onLayoutReady(() => this.refreshAllPaper());
 		setInkSizeMult("pen", this.settings.inkSizes.pen);
 		setInkSizeMult("highlighter", this.settings.inkSizes.highlighter);
 		setPressureSensitivity(this.settings.pressureSensitivity);
@@ -1866,8 +1941,13 @@ class HandwritingSettingTab extends PluginSettingTab {
 				});
 			});
 		new Setting(containerEl)
-			.setName("Paper background")
-			.setDesc("Lined or grid paper. Default none.")
+			.setName("Paper background (default)")
+			.setDesc(
+				"Lined or grid paper for notes that have not set their own. " +
+					"Each note remembers its own choice once you cycle it there " +
+					"(command: \"Paper: cycle ... for this note\"); this is only " +
+					"the fallback for notes that never have. Default none."
+			)
 			.addDropdown((d) =>
 				d
 					.addOption("none", "None")
@@ -1877,7 +1957,7 @@ class HandwritingSettingTab extends PluginSettingTab {
 					.onChange((v) => {
 						const style = normalizePaperStyle(v);
 						this.plugin.settings.paperStyle = style;
-						this.plugin.applyPaper(style);
+						this.plugin.refreshAllPaper();
 						this.plugin.saveSettingsNow();
 					})
 			);

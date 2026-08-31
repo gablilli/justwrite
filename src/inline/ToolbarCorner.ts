@@ -1,5 +1,5 @@
 /**
- * Which corner the floating pen strip parks in.
+ * Which corner (or edge) the floating pen strip parks in.
  *
  * Top-right is the default and was the only option: the writing palm owns
  * the bottom of the glass, so a bottom corner is the one place a right-handed
@@ -7,21 +7,34 @@
  * for somebody left-handed, working on a wide monitor, or with a sidebar
  * where the strip used to sit. So it becomes a choice rather than a verdict.
  *
- * The strip and its collapsed pill share one corner: they are the same
- * control in two sizes, and having them fly to opposite corners would be
+ * Top-center and bottom-center sit alongside the four corners for the same
+ * reason a corner became a choice: a wide monitor or a centered writing
+ * column can make a corner feel off-axis, and centering the strip on the
+ * top or bottom edge is the natural third option once corners already are.
+ *
+ * The strip and its collapsed pill share one position: they are the same
+ * control in two sizes, and having them fly to different places would be
  * absurd. Both get the same class.
  *
  * DOM-free by construction, like PenToolsMode - the placement is CSS, and
  * what this module owns is only the vocabulary and its normalization.
  */
 
-export type ToolbarCorner = "top-right" | "top-left" | "bottom-right" | "bottom-left";
+export type ToolbarCorner =
+	| "top-right"
+	| "top-left"
+	| "top-center"
+	| "bottom-right"
+	| "bottom-left"
+	| "bottom-center";
 
 export const TOOLBAR_CORNERS: readonly ToolbarCorner[] = [
 	"top-right",
 	"top-left",
+	"top-center",
 	"bottom-right",
 	"bottom-left",
+	"bottom-center",
 ];
 
 export const DEFAULT_TOOLBAR_CORNER: ToolbarCorner = "top-right";
@@ -30,8 +43,10 @@ export const DEFAULT_TOOLBAR_CORNER: ToolbarCorner = "top-right";
 export const TOOLBAR_CORNER_LABELS: ReadonlyArray<{ value: ToolbarCorner; label: string }> = [
 	{ value: "top-right", label: "Top right" },
 	{ value: "top-left", label: "Top left" },
+	{ value: "top-center", label: "Top center" },
 	{ value: "bottom-right", label: "Bottom right" },
 	{ value: "bottom-left", label: "Bottom left" },
+	{ value: "bottom-center", label: "Bottom center" },
 ];
 
 /**

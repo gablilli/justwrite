@@ -287,12 +287,14 @@
 /* ---- paper ---- */
 
 /*
- * Ruled backgrounds, chosen per device (body class), drawn on the editor
- * scroller. background-attachment: local scrolls the ruling with the text -
- * paper, and never a window decal. 28px pitch, the border color at 1px so it
- * stays quiet under ink in both themes.
+ * Ruled backgrounds, chosen PER NOTE (1.4): the class lands on the leaf's own
+ * view container (main.ts refreshAllPaper), not on `body`, so two panes open
+ * on two different notes can rule themselves differently. background-
+ * attachment: local scrolls the ruling with the text - paper, and never a
+ * window decal. 28px pitch, the border color at 1px so it stays quiet under
+ * ink in both themes.
  */
-body.handwriting-paper-lines .markdown-source-view .cm-scroller {
+.handwriting-paper-lines .markdown-source-view .cm-scroller {
 	background-image: repeating-linear-gradient(
 		to bottom,
 		transparent,
@@ -303,7 +305,7 @@ body.handwriting-paper-lines .markdown-source-view .cm-scroller {
 	background-attachment: local;
 }
 
-body.handwriting-paper-grid .markdown-source-view .cm-scroller {
+.handwriting-paper-grid .markdown-source-view .cm-scroller {
 	background-image:
 		repeating-linear-gradient(
 			to bottom,
@@ -338,6 +340,15 @@ body.handwriting-paper-grid .markdown-source-view .cm-scroller {
 	left: 8px;
 }
 
+/* Centered on an edge rather than a corner: left 50% + translateX(-50%)
+   keeps the strip centered as it wraps/grows, without knowing its width. */
+.handwriting-mobile-tools.handwriting-corner-top-center,
+.handwriting-pen-pill.handwriting-corner-top-center {
+	top: 8px;
+	left: 50%;
+	transform: translateX(-50%);
+}
+
 .handwriting-mobile-tools.handwriting-corner-bottom-right,
 .handwriting-pen-pill.handwriting-corner-bottom-right {
 	bottom: 8px;
@@ -348,6 +359,13 @@ body.handwriting-paper-grid .markdown-source-view .cm-scroller {
 .handwriting-pen-pill.handwriting-corner-bottom-left {
 	bottom: 8px;
 	left: 8px;
+}
+
+.handwriting-mobile-tools.handwriting-corner-bottom-center,
+.handwriting-pen-pill.handwriting-corner-bottom-center {
+	bottom: 8px;
+	left: 50%;
+	transform: translateX(-50%);
 }
 
 /* ---- mobile tool strip ---- */
@@ -382,7 +400,7 @@ body.handwriting-paper-grid .markdown-source-view .cm-scroller {
 	padding: 4px;
 	background: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
-	border-radius: 10px;
+	border-radius: 18px;
 	opacity: 0.92;
 }
 
@@ -396,7 +414,7 @@ body.handwriting-paper-grid .markdown-source-view .cm-scroller {
 	padding: 0;
 	background: transparent;
 	border: none;
-	border-radius: 8px;
+	border-radius: 12px;
 	box-shadow: none;
 	color: var(--text-muted);
 	touch-action: manipulation;
@@ -454,7 +472,7 @@ body.handwriting-paper-grid .markdown-source-view .cm-scroller {
 	padding: 8px 4px 6px;
 	background: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
-	border-radius: 10px;
+	border-radius: 16px;
 	opacity: 0.92;
 }
 
@@ -518,26 +536,13 @@ body.handwriting-paper-grid .markdown-source-view .cm-scroller {
 	border-color: var(--interactive-accent);
 }
 
-/* Color swatches: a row of the active tool's palette; current one ringed. */
-/*
- * Eight swatches in a deterministic 4 x 2, not a row told to fold inside a
- * pixel budget. The budget was guessed against a 22px swatch on a desktop and
- * came out two-wide in a three-wide box on an ipad: any platform that pads or
- * sizes differently gets a different answer, and none of them are checkable
- * from here. A column count cannot drift.
- */
-.handwriting-color-pop {
-	display: grid;
-	grid-template-columns: repeat(4, auto);
-	justify-items: center;
-	align-items: center;
-	gap: 6px;
-	padding: 8px;
-}
+/* Color swatches: fixed grid inside .handwriting-tool-panel (below). */
 
 .handwriting-color-swatch {
 	width: 22px;
 	height: 22px;
+	flex: none;
+	box-sizing: border-box;
 	padding: 0;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 50%;
@@ -555,17 +560,104 @@ body.handwriting-paper-grid .markdown-source-view .cm-scroller {
 	color: var(--text-muted);
 }
 
+/*
+ * The combined pen/highlighter panel: a HORIZONTAL size slider (a plain
+ * range input, no rotation trick needed since it already runs the way the
+ * input wants to), the palette as a fixed grid underneath, and a hex field
+ * for anything the palette does not offer. Wider than the plain slider pop
+ * because it is doing three jobs instead of one.
+ */
+.handwriting-tool-panel {
+	width: 172px;
+	align-items: stretch;
+}
+
+.handwriting-hslider-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 2px 6px 0;
+}
+
+.handwriting-hslider {
+	flex: 1 1 auto;
+	width: auto;
+	margin: 0;
+	touch-action: manipulation;
+}
+
+.handwriting-tool-panel .handwriting-slider-val {
+	flex: none;
+	min-width: 34px;
+	text-align: right;
+}
+
+.handwriting-tool-panel-divider {
+	height: 1px;
+	margin: 2px 6px;
+	background: var(--background-modifier-border);
+}
+
+/* Same grid as the old standalone palette pop, just nested inside the
+   panel now rather than living in its own pop. Fixed swatch size + centered
+   grid cells means the swatches never stretch to fill the row. */
+.handwriting-color-grid {
+	display: grid;
+	grid-template-columns: repeat(4, 22px);
+	justify-items: center;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px;
+}
+
+.handwriting-hex-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 8px 2px;
+}
+
+.handwriting-hex-preview {
+	width: 16px;
+	height: 16px;
+	flex: none;
+	border-radius: 50%;
+	border: 1px solid var(--background-modifier-border);
+}
+
+.handwriting-hex-input {
+	flex: 1 1 auto;
+	width: auto;
+	min-width: 0;
+	font-size: 11px;
+	font-family: var(--font-monospace);
+	padding: 3px 6px;
+	border-radius: 8px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+
 /* Collapsed: the strip yields to a single pill (PencilKit's move). Both
    elements always exist; classes swap which one shows. */
 .handwriting-mobile-tools.is-collapsed {
 	display: none;
 }
 
+/*
+ * The strip used to fully hide while inking (opacity 0 + visibility
+ * hidden). That fought the actual ask: a strip that vanishes mid-stroke and
+ * reappears a beat later reads as flaky chrome, and it hid the toolbar
+ * regardless of whether it was open (full strip) or collapsed (pill) - it
+ * always came back as whichever it already was, so hiding it added a flicker
+ * without changing what was reachable afterwards. It now stays visible in
+ * whatever state it was already in; pointer-events is dropped instead, so a
+ * stroke or an eraser scrub that passes under the strip cannot be captured
+ * by one of its buttons mid-gesture.
+ */
 .handwriting-mobile-tools.is-inking,
 .handwriting-pen-pill.is-inking {
-	opacity: 0;
-	visibility: hidden;
-	transition: opacity 40ms linear, visibility 0s linear 40ms;
+	pointer-events: none;
 }
 
 .handwriting-pen-pill {

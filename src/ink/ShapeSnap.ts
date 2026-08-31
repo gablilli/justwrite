@@ -18,18 +18,18 @@ import { computeBBox } from "./Stroke";
  */
 
 /** The hold that asks for a snap: this long ... */
-export const DWELL_MS = 350;
+export const DWELL_MS = 260;
 /** ... within this world-unit radius (a few screen px). */
 export const DWELL_RADIUS = 3;
 /** Ignore flicks and dots: a snap candidate has some size to it. */
 const MIN_PATH_LENGTH = 24;
 /** Endpoints closer than this fraction of path length close the figure. */
-const CLOSURE_FRACTION = 0.22;
+const CLOSURE_FRACTION = 0.28;
 /** RDP simplification tolerance as a fraction of the bbox diagonal. */
 /** Max mean radial error for a circle/ellipse, fraction of mean radius. */
-const ROUND_TOLERANCE = 0.16;
+const ROUND_TOLERANCE = 0.2;
 /** Max perpendicular deviation for a line, fraction of its length. */
-const LINE_TOLERANCE = 0.05;
+const LINE_TOLERANCE = 0.08;
 /** Synthesized point spacing in world units. */
 const SYNTH_STEP = 3;
 
@@ -221,7 +221,7 @@ function classifyClosed(body: readonly P[], gapFrac: number): SnapResult | null 
 	// its threshold rises far above anything on the ring.
 	const sortedTurns = [...turns].sort((a, b) => a - b);
 	const median = sortedTurns[N >> 1]!;
-	const threshold = Math.max((40 * Math.PI) / 180, median * 3);
+	const threshold = Math.max((34 * Math.PI) / 180, median * 3);
 	const strongIdx: number[] = [];
 	for (let i = 0; i < N; i++) {
 		if (onChord(i)) continue;
@@ -245,7 +245,7 @@ function classifyClosed(body: readonly P[], gapFrac: number): SnapResult | null 
 	// now a triangle that fits poorly gets the strongest suppressed peak
 	// rescued as a fourth corner and the two candidates compete on fit,
 	// and any polygon that still fits badly falls back to freehand.
-	const FIT_TOL = 0.05;
+	const FIT_TOL = 0.075;
 	if (strong.length === 3) {
 		let err = polygonFitError(ring, strong, diag, onChord);
 		if (err > FIT_TOL) {

@@ -87,7 +87,7 @@ describe("applyEndTaper — tips, not blunt caps", () => {
 		const pts = ribbon(101, 1, 2); // 100 units long, taper zone ~5.3
 		applyEndTaper(pts, DEFAULT_PEN, PEN_SHAPE);
 		expect(pts[0]!.hw).toBeCloseTo(2 * PEN_SHAPE.tipFloor, 6);
-		expect(pts[100]!.hw).toBeLessThan(0.5);
+		expect(pts[100]!.hw).toBeCloseTo(2 * PEN_SHAPE.tipFloor, 6);
 		expect(pts[50]!.hw).toBeCloseTo(2, 6);
 	});
 

@@ -1,5 +1,5 @@
 import { CameraState } from "../camera/coordinates";
-import { PenStyle, widthForPressure } from "./PenStyle";
+import { HIGHLIGHTER_ALPHA, PenStyle, widthForPressure } from "./PenStyle";
 import { SmoothSegment } from "./Smoothing";
 import { flattenStroke } from "./Ribbon";
 import { flattenStrokeShaped, inkShapingEnabled } from "./InkShape";
@@ -93,6 +93,17 @@ export function drawStroke(
 	ctx.lineCap = "round";
 	ctx.lineJoin = "round";
 	ctx.strokeStyle = strokeStyleFor(stroke);
+	// Layered highlighting: each COMMITTED highlighter stroke paints at the
+	// layer alpha itself (one fill call per stroke, so a single stroke's
+	// self-crossing still reads as one flat wash - no internal seams).
+	// Two separate strokes drawn over each other now compose normally, so a
+	// second pass over the same ink genuinely darkens, the way a real
+	// highlighter layers. The DOM canvas this lands on is left fully opaque
+	// (InkOverlay owns that); only the still-drawing WET preview keeps its
+	// translucency at the canvas level, because that path strokes many
+	// overlapping segments per gesture and per-segment alpha would seam.
+	const priorAlpha = ctx.globalAlpha;
+	if (flat) ctx.globalAlpha = priorAlpha * HIGHLIGHTER_ALPHA;
 	if (smooth) {
 		// One path, one fill, one antialiased edge. See Ribbon.ts for why
 		// per-segment stroking looks beaded when magnified. Pen strokes take
@@ -105,11 +116,13 @@ export function drawStroke(
 				? flattenStrokeShaped(pts, style, cam.zoom)
 				: flattenStroke(pts, style, cam.zoom);
 		fillRibbon(ctx, cam, ribbon, strokeStyleFor(stroke));
+		ctx.globalAlpha = priorAlpha;
 		return;
 	}
 	for (let i = 1; i < pts.length; i++) {
 		drawSegment(ctx, cam, style, pts[i - 1]!, pts[i]!);
 	}
+	ctx.globalAlpha = priorAlpha;
 }
 
 /**

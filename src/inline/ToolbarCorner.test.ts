@@ -10,8 +10,8 @@ import {
 import css from "../../styles.css?raw";
 
 describe("ToolbarCorner", () => {
-	it("offers all four corners and defaults to the one that shipped", () => {
-		expect(TOOLBAR_CORNERS).toHaveLength(4);
+	it("offers all six positions and defaults to the one that shipped", () => {
+		expect(TOOLBAR_CORNERS).toHaveLength(6);
 		expect(DEFAULT_TOOLBAR_CORNER).toBe("top-right");
 	});
 
@@ -32,7 +32,7 @@ describe("ToolbarCorner", () => {
 
 	it("gives each corner its own class, and can list them all to clear", () => {
 		const classes = allToolbarCornerClasses();
-		expect(new Set(classes).size).toBe(4);
+		expect(new Set(classes).size).toBe(6);
 		for (const c of TOOLBAR_CORNERS) expect(classes).toContain(toolbarCornerClass(c));
 	});
 
