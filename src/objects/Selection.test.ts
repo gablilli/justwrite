@@ -88,25 +88,25 @@ describe("strokeInLasso", () => {
 		expect(strokeInLasso(stroke([[200, 200], [300, 300]]), square, squareBounds)).toBe(false);
 	});
 
-	it("ignores a stroke the lasso merely crosses (samples outside)", () => {
-		// The old any-touch rule took this whole stroke for two grazed
-		// points; majority-inside leaves it be.
-		expect(strokeInLasso(stroke([[-50, 50], [150, 50]]), square, squareBounds)).toBe(false);
+	it("selects a stroke the lasso merely crosses (samples outside, edge crossed)", () => {
+		// No sample lands inside the loop, but the segment between them
+		// passes straight through it - a real touch, so it is caught.
+		expect(strokeInLasso(stroke([[-50, 50], [150, 50]]), square, squareBounds)).toBe(true);
 	});
 
-	it("ignores a stroke only clipped at its edge", () => {
-		// One sample of four inside: grazed while circling something else.
+	it("selects a stroke only clipped at its edge", () => {
+		// One sample of four inside: only part of the stroke was
+		// circled, but that part is enough - touch, not majority.
 		expect(
 			strokeInLasso(
 				stroke([[90, 50], [150, 50], [210, 50], [270, 50]]),
 				square,
 				squareBounds
 			)
-		).toBe(false);
+		).toBe(true);
 	});
 
 	it("selects a stroke mostly inside", () => {
-		// Three of four samples in the loop: that is what was circled.
 		expect(
 			strokeInLasso(
 				stroke([[20, 50], [50, 50], [80, 50], [150, 50]]),
@@ -114,6 +114,12 @@ describe("strokeInLasso", () => {
 				squareBounds
 			)
 		).toBe(true);
+	});
+
+	it("ignores a stroke that neither lands a sample inside nor crosses the loop", () => {
+		// Passes well clear of the square on every sample and every
+		// segment: nothing about it was actually circled.
+		expect(strokeInLasso(stroke([[150, 200], [250, 300]]), square, squareBounds)).toBe(false);
 	});
 
 	it("ignores a stroke whose bbox overlaps but whose ink does not", () => {

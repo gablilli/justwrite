@@ -81,15 +81,19 @@ function polygonCrossesSegment(poly: readonly Point2[], a: Point2, b: Point2): b
 }
 
 /**
- * A stroke needs a MAJORITY of its samples inside to be selected. The old
- * rule was any-touch: one sample inside, or the lasso line merely crossing
- * the stroke, took the whole thing - so circling a word while clipping the
- * neighbour's descender grabbed the neighbour too (orion 2026-08-26,
- * "keeps picking up other stuff"). Half is the honest threshold: what you
- * circled comes, what you grazed stays.
+ * Touch, not majority: a stroke is selected the moment the loop actually
+ * touches it - a sample landing inside, or the loop's own edge crossing the
+ * stroke's path. A short majority-of-samples rule shipped for a while to
+ * stop circling a word from also grabbing a neighbour's descender it merely
+ * grazed, but it swung too far the other way: a stroke the user genuinely
+ * circled, but only PART of - a long line half inside the loop, a big
+ * shape with only its near side enclosed - was left out entirely unless
+ * nearly the whole thing fit inside, which read as "the lasso doesn't
+ * work" for anything but small, fully-enclosed marks. The segment-crossing
+ * half of this test is what actually fixes that: it catches a stroke the
+ * loop cuts through even when none of its (possibly sparse) sample points
+ * happen to land inside it.
  */
-const LASSO_INSIDE_FRACTION = 0.5;
-
 export function strokeInLasso(
 	stroke: InkStroke,
 	poly: readonly Point2[],
@@ -99,11 +103,13 @@ export function strokeInLasso(
 	if (!bboxOverlaps(stroke.bbox, bounds)) return false;
 	const pts = stroke.points;
 	if (pts.length === 0) return false;
-	let inside = 0;
 	for (const p of pts) {
-		if (pointInPolygon(p.x, p.y, poly)) inside++;
+		if (pointInPolygon(p.x, p.y, poly)) return true;
 	}
-	return inside >= pts.length * LASSO_INSIDE_FRACTION && inside > 0;
+	for (let i = 1; i < pts.length; i++) {
+		if (polygonCrossesSegment(poly, pts[i - 1]!, pts[i]!)) return true;
+	}
+	return false;
 }
 
 export function rectInLasso(

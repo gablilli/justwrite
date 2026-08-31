@@ -120,9 +120,10 @@ const BUTTONS: ButtonSpec[] = [
 		commandId: "handwriting:inline-tool-highlighter",
 		isActive: (h) => tipInks(h) && h.activeTool() === "highlighter",
 	},
-	// The colour belongs with the nibs it changes; it used to sit four
-	// unrelated buttons away, between Paste and Undo.
-	{ icon: "palette", glyph: "Cl", label: "Ink color", commandId: "handwriting:ink-color-cycle" },
+	// The standalone palette button is gone: color now lives INSIDE each
+	// nib's own panel (toolPanel below), reached by tapping the nib you
+	// are already holding. A second button that opened the very same
+	// swatches was redundant chrome once the panel carried them itself.
 	{
 		icon: "eraser",
 		glyph: "E",
@@ -259,18 +260,15 @@ export class MobileTools {
 			b.addEventListener("click", (ev) => {
 				ev.preventDefault();
 				// The GoodNotes pattern: tapping the tool you are already
-				// holding opens its options instead of re-picking it. The
-				// palette button is an alias for the same thing: it opens
-				// whichever nib is currently active, since color and size
-				// now live in one panel per nib rather than a separate pop.
+				// holding opens its options instead of re-picking it.
+				// Color and size live together in one panel per nib now,
+				// so there is no separate palette button to alias.
 				const nib =
 					spec.commandId === "handwriting:inline-tool-pen"
 						? "pen"
 						: spec.commandId === "handwriting:inline-tool-highlighter"
 							? "highlighter"
-							: spec.commandId === "handwriting:ink-color-cycle"
-								? (this.host.activeTool() as "pen" | "highlighter")
-								: null;
+							: null;
 				if (nib && (spec.isActive?.(this.host) ?? true)) {
 					this.openInkSlider = this.openInkSlider === nib ? null : nib;
 				} else {
@@ -351,7 +349,7 @@ export class MobileTools {
 			"pen",
 			"Pen size",
 			"0.3",
-			"3",
+			"4",
 			"0.05",
 			(v) => `${v.toFixed(2)}x`,
 			(v, c) => this.host.setInkSizeMult("pen", v, c)
@@ -452,10 +450,6 @@ export class MobileTools {
 		for (const { el, spec } of this.buttons) {
 			el.classList.toggle("is-active", spec.isActive?.(this.host) ?? false);
 			el.classList.toggle("is-disabled", !(spec.isEnabled?.(this.host) ?? true));
-			// The palette button answers "which color" by BEING it.
-			if (spec.commandId === "handwriting:ink-color-cycle") {
-				el.setCssStyles({ color: this.host.activeColor() });
-			}
 		}
 		// Hang a drop-down under its button, measured live so it survives
 		// the strip wrapping on narrow screens.
