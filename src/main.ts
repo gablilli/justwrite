@@ -1,6 +1,7 @@
 import { App, MarkdownRenderChild, MarkdownView, Modal, Notice, Platform, Plugin, PluginSettingTab, Setting, TAbstractFile, TFile, WorkspaceLeaf, normalizePath } from "obsidian";
 import { CameraState } from "./camera/coordinates";
 import { HANDWRITING_PAGE_VIEW_TYPE, HandwritingHost, HandwritingPageView } from "./view/HandwritingPageView";
+import { InkTool } from "./ink/Stroke";
 import {
 	HANDWRITING_DIAGNOSTICS_VIEW_TYPE,
 	PenDiagnosticsView,
