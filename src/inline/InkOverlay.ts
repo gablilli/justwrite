@@ -335,9 +335,23 @@ export function setToolbarCorner(corner: ToolbarCorner): void {
 let penReticleOn = true;
 let eraserWholeStrokes = true;
 let shapeSnapOn = true;
+/**
+ * Wires the "Stroke smoothing" setting into the inline overlay. Before this,
+ * the setting only reached the standalone `.ink` page view
+ * (`HandwritingPageView.setSmoothing`); every inline note ignored it and
+ * always drew smoothed, so turning it off in Settings did nothing here
+ * (alan, 2026-08-30).
+ */
+let smoothInkOn = true;
 
 export function setShapeSnap(on: boolean): void {
 	shapeSnapOn = on;
+}
+
+/** Settings changed smoothing: repaint every open inline overlay to match. */
+export function setSmoothInk(on: boolean): void {
+	smoothInkOn = on;
+	repaintAllInkOverlays();
 }
 
 export function setPenReticle(on: boolean): void {
@@ -894,11 +908,14 @@ class InkOverlayPlugin {
 		this.committedCtx = ctx;
 		this.highlightCtx = hctx;
 		// Frozen pipeline: plain canvas (desynchronized: false), smoothed tail.
+		// Wet tail smoothing follows the "Stroke smoothing" setting; the
+		// per-stroke penDown() path below re-applies it every time, so a
+		// mid-session toggle takes effect on the very next stroke.
 		this.wet = new WetInkRenderer(this.wetCanvas, INLINE_DESYNCHRONIZED);
-		this.wet.smooth = true;
+		this.wet.smooth = smoothInkOn;
 		this.wet.shape = true; // pen ink takes the shaped width law (InkShape)
 		this.highlightWet = new WetInkRenderer(this.highlightWetCanvas, INLINE_DESYNCHRONIZED);
-		this.highlightWet.smooth = true;
+		this.highlightWet.smooth = smoothInkOn;
 		this.activeWet = this.wet;
 		// NOT desynchronized, and that is a hardware finding rather than an
 		// oversight. The reasoning for giving the tip layer the low-latency
@@ -953,7 +970,8 @@ class InkOverlayPlugin {
 					mouseInkEnabled()
 				),
 			},
-			() => this.cssScale
+			() => this.cssScale,
+			this.view.contentDOM
 		);
 
 		this.resizeObserver = new ResizeObserver(() => this.handleResize());
@@ -1845,6 +1863,11 @@ class InkOverlayPlugin {
 		// stroke draws flat live, exactly as it will commit.
 		const fromMouse = ev.pointerType === "mouse";
 		this.wet.shape = !fromMouse;
+		// Re-applied every stroke (not just at mount) so a mid-session
+		// "Stroke smoothing" toggle takes effect on the very next stroke,
+		// not only after the note is closed and reopened.
+		this.wet.smooth = smoothInkOn;
+		this.highlightWet.smooth = smoothInkOn;
 		// A mouse's constant 0.5 is neither evidence about the pen hardware
 		// nor something to amplify: gain 1, and its max is never reported.
 		this.strokeGain = fromMouse ? 1 : strokeGain();
@@ -2235,7 +2258,7 @@ class InkOverlayPlugin {
 						this.camera.snapshot,
 						finished,
 						undefined,
-						true
+						smoothInkOn
 					);
 				}
 			},
@@ -3511,8 +3534,8 @@ class InkOverlayPlugin {
 		}
 		this.lastPaintCam = { x: cam.x, y: cam.y, zoom: cam.zoom };
 		if (work === "all") {
-			drawCommitted(this.highlightCtx, cam, strokes, this.cssWidth, this.cssHeight, true, "highlighter");
-			drawCommitted(this.committedCtx, cam, strokes, this.cssWidth, this.cssHeight, true, "pen");
+			drawCommitted(this.highlightCtx, cam, strokes, this.cssWidth, this.cssHeight, smoothInkOn, "highlighter");
+			drawCommitted(this.committedCtx, cam, strokes, this.cssWidth, this.cssHeight, smoothInkOn, "pen");
 		} else if (work.length > 0) {
 			if (this.indexDirty) {
 				this.strokeIndex.rebuild(strokes);
@@ -3520,8 +3543,8 @@ class InkOverlayPlugin {
 			}
 			for (const rect of work) {
 				const hit = this.strokeIndex.query(rect);
-				drawRegion(this.highlightCtx, cam, hit, rect, true, "highlighter");
-				drawRegion(this.committedCtx, cam, hit, rect, true, "pen");
+				drawRegion(this.highlightCtx, cam, hit, rect, smoothInkOn, "highlighter");
+				drawRegion(this.committedCtx, cam, hit, rect, smoothInkOn, "pen");
 			}
 		}
 		// Selection chrome lives in world coordinates: scrolling and reflow

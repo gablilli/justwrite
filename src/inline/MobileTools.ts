@@ -216,6 +216,25 @@ export class MobileTools {
 
 	private pill: HTMLElement;
 
+	// Buttons must not take focus from the editor: undo/redo route to the
+	// active editor, and a focus-stealing toolbar makes that a coin flip.
+	//
+	// MOUSE ONLY. Calling preventDefault() on pointerdown for a touch- or
+	// pen-sourced pointer tells WebKit the compatibility mouse events that
+	// follow - including click - are unwanted, and on iPadOS it honours that
+	// by never firing them. Every button in this strip went permanently dead
+	// under Apple Pencil (and finger) as a result: pointerdown fired, click
+	// never did (alan, iPad, 2026-08-29). Mouse and trackpad clicks don't
+	// carry that penalty, so they keep the focus guard; pen and touch taps
+	// skip it and rely on `click` alone. An arrow field, not a constructor
+	// local, so every button-building method - including toolPanel(), a
+	// separate method - can reach it.
+	private noFocus = (el: HTMLElement): void => {
+		el.addEventListener("pointerdown", (ev) => {
+			if (ev.pointerType === "mouse") ev.preventDefault();
+		});
+	};
+
 	constructor(parent: HTMLElement, private host: MobileToolsHost) {
 		// The collapsed form: one small pen button that brings the strip back.
 		this.pill = parent.createEl("button", {
@@ -224,10 +243,7 @@ export class MobileTools {
 		});
 		setIcon(this.pill, "pen");
 		if (!this.pill.querySelector("svg")) this.pill.setText("P");
-		// Buttons must not take focus from the editor: undo/redo route to the
-		// active editor, and a focus-stealing toolbar makes that a coin flip.
-		const noFocus = (el: HTMLElement) =>
-			el.addEventListener("pointerdown", (ev) => ev.preventDefault());
+		const noFocus = this.noFocus;
 		noFocus(this.pill);
 		this.pill.addEventListener("click", (ev) => {
 			ev.preventDefault();
@@ -327,7 +343,7 @@ export class MobileTools {
 					text: label,
 					attr: { type: "button" },
 				});
-				el.addEventListener("pointerdown", (ev) => ev.preventDefault());
+				noFocus(el);
 				el.addEventListener("click", (ev) => {
 					ev.preventDefault();
 					this.host.setEraserWholeStroke(whole);
@@ -503,7 +519,7 @@ export class MobileTools {
 					const dot = sw.createSpan({ cls: "justwrite-color-swatch-dot" });
 					dot.setCssStyles({ backgroundColor: c.hex });
 					sw.toggleClass("is-current", c.hex.toLowerCase() === current.toLowerCase());
-					sw.addEventListener("pointerdown", (ev) => ev.preventDefault());
+					this.noFocus(sw);
 					sw.addEventListener("click", (ev) => {
 						ev.preventDefault();
 						this.host.exec(`handwriting:ink-color-${c.name}`);

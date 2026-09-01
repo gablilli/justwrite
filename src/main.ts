@@ -40,6 +40,7 @@ import {
 	setPersistInkColor,
 	setPersistInkSize,
 	setShapeSnap,
+	setSmoothInk,
 	setToolbarCorner,
 	stripQuiet,
 } from "./inline/InkOverlay";
@@ -1798,6 +1799,10 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 		setEraserWholeStrokes(this.settings.eraserMode === "stroke");
 		setPenReticle(this.settings.penReticle);
 		setShapeSnap(this.settings.shapeSnap);
+		// Without this, a note opened before the settings tab is ever
+		// touched draws with the module default (smoothed) even if the
+		// saved setting says otherwise.
+		setSmoothInk(this.settings.smoothInk);
 	}
 
 	/** Settings-tab writes: persist now, quietly. */
@@ -2012,6 +2017,11 @@ class HandwritingSettingTab extends PluginSettingTab {
 								leaf.view.setSmoothing(on);
 							}
 						});
+					// The standalone .ink page view above and every inline
+					// note overlay used to be two separate pipelines, and
+					// only the page view listened to this setting - inline
+					// ink stayed smoothed no matter what (alan, 2026-08-30).
+					setSmoothInk(on);
 					this.plugin.saveSettingsNow();
 				})
 			);

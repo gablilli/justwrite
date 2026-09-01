@@ -1,5 +1,5 @@
 import { CameraState } from "../camera/coordinates";
-import { HIGHLIGHTER_ALPHA, PenStyle, widthForPressure } from "./PenStyle";
+import { HIGHLIGHTER_ALPHA, PenStyle, PEN_MIN_WIDTH_FACTOR, widthForPressure } from "./PenStyle";
 import { SmoothSegment } from "./Smoothing";
 import { flattenStroke } from "./Ribbon";
 import { flattenStrokeShaped, inkShapingEnabled } from "./InkShape";
@@ -87,7 +87,7 @@ export function drawStroke(
 	const style: PenStyle = {
 		color: stroke.color,
 		baseWidth: stroke.width,
-		minWidthFactor: styleOverride?.minWidthFactor ?? (flat ? 0.9 : 0.35),
+		minWidthFactor: styleOverride?.minWidthFactor ?? (flat ? 0.9 : PEN_MIN_WIDTH_FACTOR),
 		gamma: styleOverride?.gamma ?? (flat ? 1 : 0.75),
 	};
 	ctx.lineCap = "round";

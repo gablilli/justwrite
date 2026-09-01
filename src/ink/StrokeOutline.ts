@@ -17,7 +17,7 @@
 
 import { flattenStroke, ribbonSides, jointIndices, RibbonPt } from "./Ribbon";
 import { flattenStrokeShaped, inkShapingEnabled } from "./InkShape";
-import { PenStyle } from "./PenStyle";
+import { PenStyle, PEN_MIN_WIDTH_FACTOR } from "./PenStyle";
 import { InkStroke } from "./Stroke";
 
 /** Density for curve flattening: world px are CSS px, 2 samples per px. */
@@ -51,7 +51,7 @@ export function ribbonOf(stroke: InkStroke): RibbonPt[] {
 	const style: PenStyle = {
 		color: stroke.color,
 		baseWidth: stroke.width,
-		minWidthFactor: flat ? 0.9 : 0.35,
+		minWidthFactor: flat ? 0.9 : PEN_MIN_WIDTH_FACTOR,
 		gamma: flat ? 1 : 0.75,
 	};
 	return !flat && stroke.device !== "mouse" && inkShapingEnabled()

@@ -12,10 +12,24 @@ export interface PenStyle {
 	gamma: number;
 }
 
+/**
+ * Floor for the pen (not the highlighter) at zero pressure, as a fraction of
+ * baseWidth. This is what the tip tapers DOWN TO at pen-up: real pressure
+ * curves on Apple Pencil and similar devices fall off sharply right at
+ * lift-off, and at the old 0.35 the last few live samples before release
+ * read as a needle point rather than a natural nib lift (reported: alan,
+ * iPad, 2026-08-30). Raised to 0.5 - still a real taper, just not a spike.
+ *
+ * Shared by every path that draws pen ink at zero pressure, wet or
+ * committed (see StrokeOutline.ts and StrokeRenderer.ts), so the tip never
+ * jumps to a different sharpness the moment a stroke commits.
+ */
+export const PEN_MIN_WIDTH_FACTOR = 0.5;
+
 export const DEFAULT_PEN: PenStyle = {
 	color: "#2f6de0",
 	baseWidth: 2.2,
-	minWidthFactor: 0.35,
+	minWidthFactor: PEN_MIN_WIDTH_FACTOR,
 	gamma: 0.75,
 };
 

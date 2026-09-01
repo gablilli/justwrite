@@ -545,7 +545,16 @@ export class InlinePenRouter {
 		 * in layout px. Without this the pen lands in the wrong place, and
 		 * draws at the wrong size, whenever the editor is scaled.
 		 */
-		scaleProvider: () => number = () => 1
+		scaleProvider: () => number = () => 1,
+		/**
+		 * CodeMirror's actual `contenteditable` element (`.cm-content`), a
+		 * CHILD of `scrollEl`. Scribble suppression has to land here: WebKit
+		 * decides whether to offer Scribble by reading `inputmode` off the
+		 * focused editable element itself, not off a non-editable ancestor
+		 * div. Stamping the scroller alone silently suppressed nothing - the
+		 * Pencil kept being read as text entry (orion, 2026-08-29).
+		 */
+		contentEl?: HTMLElement
 	) {
 		this.scrollEl = scrollEl;
 		this.rectEl = rectEl;
@@ -565,14 +574,19 @@ export class InlinePenRouter {
 		// they reach our pointer-event handlers and converts them to typed
 		// text into CodeMirror, competing directly with ink drawing.
 		//
-		// The attribute is removed on dispose so other views that reuse the
-		// same DOM element (e.g. after a plugin reload) are not affected.
-		// Guard: test harness mocks may not implement the full Element API.
-		if (typeof scrollEl.setAttribute === "function") {
-			scrollEl.setAttribute("inputmode", "none");
+		// Applied to BOTH the scroller and the real editable element. The
+		// editable element is what WebKit actually consults; the scroller is
+		// stamped too in case some engine path checks the nearest ancestor
+		// instead. The attribute is removed on dispose so other views that
+		// reuse the same DOM element (e.g. after a plugin reload) are not
+		// affected. Guard: test harness mocks may not implement the full
+		// Element API.
+		for (const el of [scrollEl, contentEl]) {
+			if (!el || typeof el.setAttribute !== "function") continue;
+			el.setAttribute("inputmode", "none");
 			this.disposers.push(() => {
-				if (typeof scrollEl.removeAttribute === "function") {
-					scrollEl.removeAttribute("inputmode");
+				if (typeof el.removeAttribute === "function") {
+					el.removeAttribute("inputmode");
 				}
 			});
 		}
