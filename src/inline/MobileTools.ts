@@ -57,9 +57,6 @@ export interface MobileToolsHost {
 	/** Nib size multiplier for a tool, for the ink sliders. */
 	inkSizeMult(tool: string): number;
 	setInkSizeMult(tool: string, mult: number, commit: boolean): void;
-	/** Highlighter opacity, 0.05..1, for the combined highlighter panel. */
-	highlighterOpacity(): number;
-	setHighlighterOpacity(value: number, commit: boolean): void;
 	/** Editor history state, so undo/redo can dim when they would no-op. */
 	canUndo(): boolean;
 	canRedo(): boolean;
@@ -71,6 +68,12 @@ export interface MobileToolsHost {
 	palette(): ReadonlyArray<{ name: string; hex: string }>;
 	/** Set the active tool's color to an arbitrary hex string (validated). */
 	setInkColorHex(hex: string): void;
+	highlighterOpacity(): number;
+	setHighlighterOpacity(value: number, commit: boolean): void;
+	selectionStyle(): { tool: "pen" | "highlighter" | "mixed"; color: string; opacity: number };
+	setSelectionColor(hex: string): void;
+	selectionPalette(): ReadonlyArray<{ name: string; hex: string }>;
+	setSelectionOpacity(value: number, commit: boolean): void;
 }
 
 /**
@@ -200,8 +203,6 @@ interface ToolPanel {
 	pop: HTMLElement;
 	input: HTMLInputElement;
 	val: HTMLElement;
-	opacityInput?: HTMLInputElement;
-	opacityVal?: HTMLElement;
 	swatches: HTMLElement;
 	hexInput: HTMLInputElement;
 	hexSwatch: HTMLElement;
@@ -214,6 +215,11 @@ export class MobileTools {
 	private slider!: { pop: HTMLElement; input: HTMLInputElement; val: HTMLElement };
 	private penPanel!: ToolPanel;
 	private hlPanel!: ToolPanel;
+	private selectionPanel!: HTMLElement;
+	private selectionGrid!: HTMLElement;
+	private selectionOpacityInput!: HTMLInputElement;
+	private selectionOpacityVal!: HTMLElement;
+	private selectionOpacityLabel!: HTMLElement;
 	/** Which nib's panel (size + color) is open; tap the active tool again to toggle. */
 	private openInkSlider: "pen" | "highlighter" | null = null;
 	private strokeChip!: HTMLElement;
@@ -290,10 +296,15 @@ export class MobileTools {
 						: spec.commandId === "justwrite:inline-tool-highlighter"
 							? "highlighter"
 							: null;
-				if (nib && ((spec.isActive?.(this.host) ?? true) || this.host.hasInkSelection())) {
+				if (spec.commandId === "justwrite:inline-tool-lasso" && this.host.lassoOn() && this.host.hasInkSelection()) {
+					this.openInkSlider = null;
+					this.selectionPanel.toggleClass("is-showing", !this.selectionPanel.classList.contains("is-showing"));
+				} else if (nib && (spec.isActive?.(this.host) ?? true)) {
 					this.openInkSlider = this.openInkSlider === nib ? null : nib;
+					this.selectionPanel.removeClass("is-showing");
 				} else {
 					this.openInkSlider = null;
+					this.selectionPanel.removeClass("is-showing");
 					this.host.exec(spec.commandId);
 				}
 				this.refresh();
@@ -386,19 +397,20 @@ export class MobileTools {
 			(v) => `${v.toFixed(2)}x`,
 			(v, c) => this.host.setInkSizeMult("highlighter", v, c)
 		);
-		const opacityRow = this.hlPanel.pop.createDiv({ cls: "justwrite-opacity-row" });
-		opacityRow.createSpan({ text: "Opacity" });
-		const opacityInput = opacityRow.createEl("input", {
-			cls: "justwrite-opacity-slider",
-			attr: { type: "range", min: "0.05", max: "1", step: "0.05", "aria-label": "Highlighter opacity" },
-		});
-		const opacityVal = opacityRow.createSpan({ cls: "justwrite-slider-val" });
-		const showOpacity = () => opacityVal.setText(`${Math.round(Number(opacityInput.value) * 100)}%`);
-		opacityInput.addEventListener("input", () => { showOpacity(); this.host.setHighlighterOpacity(Number(opacityInput.value), false); });
-		opacityInput.addEventListener("change", () => this.host.setHighlighterOpacity(Number(opacityInput.value), true));
-		this.hlPanel.opacityInput = opacityInput;
-		this.hlPanel.opacityVal = opacityVal;
-		showOpacity();
+		this.selectionPanel = this.el.createDiv({ cls: "justwrite-slider-pop justwrite-tool-panel justwrite-selection-panel" });
+		this.selectionPanel.createDiv({ cls: "justwrite-selection-title", text: "Selection" });
+		const selGrid = this.selectionPanel.createDiv({ cls: "justwrite-color-grid" });
+		this.selectionGrid = selGrid;
+		const selOpacityRow = this.selectionPanel.createDiv({ cls: "justwrite-hslider-row justwrite-opacity-row" });
+		const selOpacityLabel = selOpacityRow.createSpan({ cls: "justwrite-opacity-label", text: "Opacity" });
+		this.selectionOpacityLabel = selOpacityLabel;
+		const selOpacity = selOpacityRow.createEl("input", { cls: "justwrite-hslider", attr: { type: "range", min: "5", max: "100", step: "1", "aria-label": "Selection opacity" } });
+		this.selectionOpacityInput = selOpacity;
+		const selOpacityVal = selOpacityRow.createDiv({ cls: "justwrite-slider-val" });
+		this.selectionOpacityVal = selOpacityVal;
+		selOpacity.addEventListener("input", () => { selOpacityVal.setText(`${selOpacity.value}%`); this.host.setSelectionOpacity(Number(selOpacity.value)/100, false); });
+		selOpacity.addEventListener("change", () => this.host.setSelectionOpacity(Number(selOpacity.value)/100, true));
+		this.selectionPanel.createDiv({ cls: "justwrite-selection-note", text: "Opacity applies to highlighted strokes." });
 		this.refreshNow();
 		this.setCollapsed(collapsedSession);
 	}
@@ -431,6 +443,17 @@ export class MobileTools {
 		});
 		input.addEventListener("change", () => onValue(Number(input.value), true));
 		show();
+		if (tool === "highlighter") {
+			const opacityRow = pop.createDiv({ cls: "justwrite-hslider-row justwrite-opacity-row" });
+			opacityRow.createSpan({ cls: "justwrite-opacity-label", text: "Opacity" });
+			const opacityInput = opacityRow.createEl("input", { cls: "justwrite-hslider", attr: { type: "range", min: "5", max: "100", step: "1", "aria-label": "Highlighter opacity" } });
+			const opacityVal = opacityRow.createDiv({ cls: "justwrite-slider-val" });
+			const showOpacity = () => opacityVal.setText(`${Math.round(Number(opacityInput.value))}%`);
+			opacityInput.addEventListener("input", () => { showOpacity(); this.host.setHighlighterOpacity(Number(opacityInput.value) / 100, false); });
+			opacityInput.addEventListener("change", () => this.host.setHighlighterOpacity(Number(opacityInput.value) / 100, true));
+			opacityInput.value = String(Math.round(this.host.highlighterOpacity() * 100));
+			showOpacity();
+		}
 		pop.createDiv({ cls: "justwrite-tool-panel-divider" });
 		const swatches = pop.createDiv({ cls: "justwrite-color-grid" });
 		const hexRow = pop.createDiv({ cls: "justwrite-hex-row" });
@@ -545,10 +568,6 @@ export class MobileTools {
 					});
 				}
 				panel.hexSwatch.setCssStyles({ backgroundColor: current });
-			if (panel.tool === "highlighter" && panel.opacityInput) {
-				panel.opacityInput.value = String(this.host.highlighterOpacity());
-				panel.opacityVal?.setText(`${Math.round(this.host.highlighterOpacity() * 100)}%`);
-			}
 				if (panel.hexInput.ownerDocument.activeElement !== panel.hexInput) {
 					panel.hexInput.value = current;
 				}
@@ -561,6 +580,10 @@ export class MobileTools {
 				show
 			);
 		};
+		if (this.selectionPanel.classList.contains("is-showing")) {
+			if (!this.host.hasInkSelection() || !this.host.lassoOn()) this.selectionPanel.removeClass("is-showing");
+			else { const ss=this.host.selectionStyle(); this.selectionGrid.empty(); for(const c of this.host.selectionPalette()){const sw=this.selectionGrid.createEl("button",{cls:"justwrite-color-swatch",attr:{type:"button","aria-label":c.name}});const dot=sw.createSpan({cls:"justwrite-color-swatch-dot"});dot.setCssStyles({backgroundColor:c.hex});sw.toggleClass("is-current",c.hex.toLowerCase()===ss.color.toLowerCase());sw.addEventListener("click",()=>{this.host.setSelectionColor(c.hex);this.refresh();});} this.selectionOpacityInput.value=String(Math.round(ss.opacity*100));this.selectionOpacityVal.setText(`${Math.round(ss.opacity*100)}%`);this.selectionOpacityInput.disabled=ss.tool==="pen";this.selectionOpacityLabel.setText(ss.tool==="pen"?"Opacity (highlighter only)":"Opacity"); }
+		}
 		populate(this.penPanel, this.host.activeTool() === "pen");
 		populate(this.hlPanel, this.host.activeTool() === "highlighter");
 	}

@@ -103,11 +103,9 @@ export function strokeToSvg(stroke: InkStroke): string {
  * origin puts the ink exactly where the note put it.
  */
 export function inkSvgBody(strokes: readonly InkStroke[]): string {
-	const hi = strokes.filter((s) => s.tool === "highlighter")
-		.map((s) => `<g opacity="${Math.min(1, Math.max(0.05, s.opacity ?? HIGHLIGHTER_ALPHA))}">${runMarkup(inkSvgRuns([s]))}</g>`)
-		.join("");
+	const hi = runMarkup(inkSvgRuns(strokes.filter((s) => s.tool === "highlighter")));
 	const pen = runMarkup(inkSvgRuns(strokes.filter((s) => s.tool !== "highlighter")));
-	return hi + pen;
+	return (hi ? `<g opacity="${HIGHLIGHTER_ALPHA}">${hi}</g>` : "") + pen;
 }
 
 /** One merged path: the fill colour and the path data, without markup. */

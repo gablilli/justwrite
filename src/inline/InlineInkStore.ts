@@ -1,4 +1,4 @@
-import { InkStroke } from "../ink/Stroke";
+import { InkStroke, computeBBox } from "../ink/Stroke";
 import { PageData, ParseResult, emptyPage, newPageId } from "../model/PageData";
 import { translateStroke } from "../objects/Selection";
 import { runDetached } from "../util/Detached";
@@ -373,6 +373,18 @@ export class InlineInkStore {
 		}
 		removed.reverse(); // ascending original indices
 		return removed;
+	}
+
+	/** Scale exactly the listed strokes around a fixed world-space anchor.
+	 * x/y scales are independent, so a resize can never introduce rotation. */
+	scaleStrokes(path: string, ids: readonly string[], anchor: { x: number; y: number }, sx: number, sy: number): void {
+		if (!Number.isFinite(sx) || !Number.isFinite(sy)) return;
+		const wanted = new Set(ids);
+		for (const s of this.record(path).strokes) {
+			if (!wanted.has(s.id)) continue;
+			s.points = s.points.map(p => ({ ...p, x: anchor.x + (p.x-anchor.x)*sx, y: anchor.y + (p.y-anchor.y)*sy }));
+			s.bbox = computeBBox(s.points, s.width * 2);
+		}
 	}
 
 	/** Translate exactly the listed strokes. Missing ids are skipped. */

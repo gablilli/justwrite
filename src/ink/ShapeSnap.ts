@@ -496,12 +496,14 @@ const ARROW_HEAD_MAX_PX = 60;         // world-unit ceiling for the arm length
  * shaftLen: straight-line distance tail→tip, used to size the arrowhead.
  */
 function synthArrow(shaftBody: readonly P[], tip: P, shaftLen: number): InkPoint[] {
-	const tail = shaftBody[0] ?? tip;
-	// Arrows use the same straight-segment synthesis as line snapping. The
-	// hand-drawn shaft is recognition evidence only; the committed result is
-	// geometrically exact and the head is built from that exact axis.
-	const shaft = synthSegment(tail, tip);
-	const angle = Math.atan2(tip.y - tail.y, tip.x - tail.x);
+	// Derive the arrowhead direction from the final approach of the shaft,
+	// not the whole shaft direction - this gives the right angle even on
+	// strongly curved arrows.
+	const approachLen = Math.min(6, shaftBody.length - 1);
+	const approachFrom = shaftBody[Math.max(0, shaftBody.length - 1 - approachLen)]!;
+	const angle = Math.atan2(tip.y - approachFrom.y, tip.x - approachFrom.x);
+
+	// Cap the arrowhead arm: proportional to shaft but never huge.
 	const headLen = Math.min(shaftLen * ARROW_HEAD_RATIO, ARROW_HEAD_MAX_PX);
 	const leftWing: P = {
 		x: tip.x - headLen * Math.cos(angle - ARROW_HEAD_ANGLE),
@@ -511,14 +513,22 @@ function synthArrow(shaftBody: readonly P[], tip: P, shaftLen: number): InkPoint
 		x: tip.x - headLen * Math.cos(angle + ARROW_HEAD_ANGLE),
 		y: tip.y - headLen * Math.sin(angle + ARROW_HEAD_ANGLE),
 	};
-	const head = [leftWing, tip, rightWing];
-	const out: InkPoint[] = [...shaft];
-	let t = out.length ? out[out.length - 1]!.t + 8 : 0;
-	for (const q of head) {
-		out.push({ x: q.x, y: q.y, pressure: 0.5, t });
-		t += 8;
-	}
-	return out;
+
+	// The snapped arrow uses the same straight-line synthesis as a snapped
+	// line. The user's hand-drawn shaft is only evidence for recognition; once
+	// accepted, the geometry is deliberately exact and can never carry the
+	// original bow through the snap.
+	const tail = shaftBody[0]!;
+	const shaftPts = synthSegment(tail, tip);
+	const headT = shaftPts.length * 8;
+
+	// Exact straight shaft, then left wing, back to tip, then right wing.
+	return [
+		...shaftPts,
+		...synthSegment(tip, leftWing, headT),
+		...synthSegment(leftWing, tip, headT + 100),
+		...synthSegment(tip, rightWing, headT + 200),
+	];
 }
 
 /**
@@ -556,8 +566,8 @@ function synthArrow(shaftBody: readonly P[], tip: P, shaftLen: number): InkPoint
  * The shaft length gate matches MIN_PATH_LENGTH; a short flutter on a short
  * stroke is too ambiguous to classify as an arrow.
  */
-const ARROW_TIP_RADIUS = 0.3;    // fraction of shaft length = "near the tip"
-const ARROW_FLUTTER_MIN = 0.03;  // min perp deviation fraction = arrowhead wing
+const ARROW_TIP_RADIUS = 0.48;    // fraction of shaft length = "near the tip"
+const ARROW_FLUTTER_MIN = 0.02;  // min perp deviation fraction = arrowhead wing
 // A purely relative flutter bar is fine for a long shaft but nearly free on a
 // short one: 3% of a 30-unit line is under 1px, so ordinary hand tremor at
 // the very end of an intentional short line - the kind of tiny wrist roll
@@ -824,8 +834,8 @@ export function snapPreview(
 		id: newStrokeId(),
 		tool,
 		color,
-		...(tool === "highlighter" && opacity !== undefined ? { opacity } : {}),
 		width,
+		...(opacity !== undefined ? { opacity } : {}),
 		points: result.points,
 		bbox: computeBBox(result.points, width * 2),
 		createdAt: Date.now(),
@@ -863,8 +873,8 @@ export function snapStroke(stroke: InkStroke, dwellConfirmed = false): InkStroke
 		id: newStrokeId(),
 		tool: stroke.tool,
 		color: stroke.color,
-		...(stroke.opacity !== undefined ? { opacity: stroke.opacity } : {}),
 		width,
+		...(stroke.opacity !== undefined ? { opacity: stroke.opacity } : {}),
 		points: result.points,
 		bbox: computeBBox(result.points, width * 2),
 		createdAt: stroke.createdAt,

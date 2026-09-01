@@ -4,8 +4,6 @@
 
 export interface PenStyle {
 	color: string;
-	/** Alpha used by translucent tools such as the highlighter. */
-	opacity?: number;
 	/** Base stroke width in world units. */
 	baseWidth: number;
 	/** Fraction of baseWidth drawn at zero pressure (floor). */
@@ -47,7 +45,6 @@ export const DEFAULT_PEN: PenStyle = {
  */
 export const HIGHLIGHTER_PEN: PenStyle = {
 	color: "#ffd60a",
-	opacity: 0.35,
 	baseWidth: 16,
 	minWidthFactor: 0.9,
 	gamma: 1,
@@ -55,9 +52,10 @@ export const HIGHLIGHTER_PEN: PenStyle = {
 
 /** Layer opacity for highlighter ink. */
 export const HIGHLIGHTER_ALPHA = 0.35;
-
-export function clampInkOpacity(value: number): number {
-	return Math.min(1, Math.max(0.05, Number.isFinite(value) ? value : HIGHLIGHTER_ALPHA));
+export const MIN_HIGHLIGHTER_ALPHA = 0.05;
+export const MAX_HIGHLIGHTER_ALPHA = 1;
+export function clampHighlighterOpacity(value: number): number {
+	return Math.min(MAX_HIGHLIGHTER_ALPHA, Math.max(MIN_HIGHLIGHTER_ALPHA, Number.isFinite(value) ? value : HIGHLIGHTER_ALPHA));
 }
 
 /** What a device that reports no pressure sends, normalized upstream. */

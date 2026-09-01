@@ -25,14 +25,16 @@ export class StrokeBuilder {
 	private tool: InkTool;
 	private color: string;
 	private width: number;
+	private opacity?: number;
 	/** Min world-space movement to accept a new sample (dedupe threshold). */
 	private minDist: number;
 
-	constructor(tool: InkTool, color: string, width: number, minDistWorld = 0.15, private device?: "mouse", private opacity?: number) {
+	constructor(tool: InkTool, color: string, width: number, minDistWorld = 0.15, private device?: "mouse", opacity?: number) {
 		this.tool = tool;
 		this.color = color;
 		this.width = width;
 		this.minDist = minDistWorld;
+		this.opacity = opacity;
 	}
 
 	get pointCount(): number {
@@ -114,8 +116,8 @@ export class StrokeBuilder {
 			id: newStrokeId(),
 			tool: this.tool,
 			color: this.color,
-			...(this.tool === "highlighter" && this.opacity !== undefined ? { opacity: this.opacity } : {}),
 			width: this.width,
+			...(this.opacity !== undefined ? { opacity: this.opacity } : {}),
 			points: finishedPoints,
 			bbox: computeBBox(finishedPoints, this.width * 2),
 			createdAt,

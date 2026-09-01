@@ -64,7 +64,7 @@ import { getPenToolsMode, markPenSeen, penSeenThisSession, penToolsVisible } fro
 import { computeCanvasSize, countPaintedPixels } from "../diag/Raster";
 import { diagnosticsEnabled } from "../diag/DiagSwitch";
 import { splitStrokeByCircle, strokesHitByCircle } from "../ink/Eraser";
-import { clampInkOpacity, DEFAULT_PEN, HIGHLIGHTER_ALPHA, HIGHLIGHTER_PEN, PenStyle } from "../ink/PenStyle";
+import { DEFAULT_PEN, HIGHLIGHTER_ALPHA, HIGHLIGHTER_PEN, PenStyle, clampHighlighterOpacity } from "../ink/PenStyle";
 import { clampInkSize } from "../ink/InkSize";
 import { colorsFor, getInkColorHex, setInkColorHex as applyInkColorHex } from "../ink/InkColor";
 import { Point2 } from "../ink/Smoothing";
@@ -169,7 +169,6 @@ const SELECTION_COLOR = "#7f9cf5";
 const SELECTION_GRAB_PAD = 8;
 /** Minimum spacing between lasso vertices, in screen px. */
 const LASSO_MIN_STEP_PX = 2;
-const SELECTION_HANDLE_HIT_PX = 14;
 
 type PenMode = "ink" | "erase" | "lasso" | "space" | "pan";
 
@@ -201,12 +200,9 @@ const PRED_HISTORY = 12;
 // hot-path cost. Existing ink is never rewritten.
 
 const inkSizeMult: Record<InkTool, number> = { pen: 1, highlighter: 1 };
-let highlighterOpacity = HIGHLIGHTER_ALPHA;
-let persistHighlighterOpacity: ((value: number) => void) | null = null;
-
-export function getHighlighterOpacity(): number { return highlighterOpacity; }
-export function setHighlighterOpacity(value: number): void { highlighterOpacity = clampInkOpacity(value); }
-export function setPersistHighlighterOpacity(fn: ((value: number) => void) | null): void { persistHighlighterOpacity = fn; }
+const highlighterOpacity = { value: HIGHLIGHTER_ALPHA };
+export function getHighlighterOpacity(): number { return highlighterOpacity.value; }
+export function setHighlighterOpacity(value: number): void { highlighterOpacity.value = clampHighlighterOpacity(value); }
 
 export function getInkSizeMult(tool: InkTool): number {
 	return inkSizeMult[tool];
@@ -415,12 +411,13 @@ export function commitEraserRadius(): void {
 
 /** Same shape for the nib-size sliders: live module state, plugin persists. */
 let persistInkSize: ((tool: InkTool, mult: number) => void) | null = null;
+let persistHighlighterOpacity: ((value: number) => void) | null = null;
+
+export function setPersistHighlighterOpacity(fn: (value: number) => void): void { persistHighlighterOpacity = fn; }
 
 export function setPersistInkSize(fn: ((tool: InkTool, mult: number) => void) | null): void {
 	persistInkSize = fn;
 }
-
-
 
 /** Same shape again, for the strip's hex field: model applies, plugin persists. */
 let persistInkColor: ((tool: InkTool, hex: string) => void) | null = null;
@@ -632,10 +629,10 @@ class InkOverlayPlugin {
 	private lassoActive = false;
 	private dragFrom: { x: number; y: number } | null = null;
 	private dragTotal: { dx: number; dy: number } | null = null;
-	private resizeHandle: number | null = null;
+	private resizeHandle: "nw"|"ne"|"sw"|"se"|"n"|"e"|"s"|"w" | null = null;
 	private resizeStartBounds: BBox | null = null;
-	private resizeStartStrokes: InkStroke[] = [];
-	private resizeStartIndices: number[] = [];
+	private resizeLastBounds: BBox | null = null;
+	private resizeOriginal: InkStroke[] | null = null;
 	/** Insert-space gesture: divider world y, or null when no gesture. */
 	private spaceLineY: number | null = null;
 	/** Ids frozen at pen-down; the live drag and the op both use this list. */
@@ -907,7 +904,7 @@ class InkOverlayPlugin {
 		// would seam within a single stroke.
 		this.highlightCanvas = canvas();
 		this.highlightWetCanvas = canvas();
-		this.highlightWetCanvas.setCssStyles({ opacity: String(HIGHLIGHTER_ALPHA) });
+		this.highlightWetCanvas.setCssStyles({ opacity: "1" });
 		this.committedCanvas = canvas();
 		this.wetCanvas = canvas();
 		this.tailCanvas = canvas();
@@ -1224,15 +1221,21 @@ class InkOverlayPlugin {
 			hasInkSelection: () => !this.selection.isEmpty,
 			palette: () => colorsFor(getInlineTool()),
 			inkSizeMult: (tool) => getInkSizeMult(tool as InkTool),
-			highlighterOpacity: () => getHighlighterOpacity(),
-			setHighlighterOpacity: (value, commit) => {
-				setHighlighterOpacity(value);
-				if (commit) persistHighlighterOpacity?.(getHighlighterOpacity());
-			},
 			setInkSizeMult: (tool, mult, commit) => {
 				setInkSizeMult(tool as InkTool, mult);
 				if (commit) persistInkSize?.(tool as InkTool, getInkSizeMult(tool as InkTool));
 			},
+			highlighterOpacity: () => highlighterOpacity.value,
+			setHighlighterOpacity: (value, commit) => {
+				const v = clampHighlighterOpacity(value);
+				highlighterOpacity.value = v;
+				if (commit) persistHighlighterOpacity?.(v);
+				this.highlightWet.opacity = v;
+			},
+			selectionPalette: () => [...colorsFor("pen"), ...colorsFor("highlighter")].filter((c,i,a)=>a.findIndex(x=>x.hex.toLowerCase()===c.hex.toLowerCase())===i),
+			selectionStyle: () => this.selectionStyle(),
+			setSelectionColor: (hex) => this.recolorSelectedInk(hex),
+			setSelectionOpacity: (value, commit) => this.setSelectionOpacity(value, commit),
 			setInkColorHex: (hex) => {
 				// When the lasso has a selection, the palette acts on the selected
 				// strokes instead of silently changing the colour for future ink.
@@ -1365,7 +1368,7 @@ class InkOverlayPlugin {
 			this.highlightWet.clear(this.cssWidth, this.cssHeight);
 			// A file switch mid-handoff would otherwise strand the wet
 			// highlighter element hidden for the next note.
-			this.highlightWetCanvas.setCssStyles({ opacity: String(HIGHLIGHTER_ALPHA) });
+			this.highlightWetCanvas.setCssStyles({ opacity: "1" });
 			this.tail.clearAll(this.cssWidth, this.cssHeight);
 			this.scheduleRepaint();
 			this.loadInk(path);
@@ -1878,13 +1881,13 @@ class InkOverlayPlugin {
 			(tool === "highlighter" ? HIGHLIGHTER_PEN.baseWidth : DEFAULT_PEN.baseWidth) *
 			getInkSizeMult(tool);
 		this.activeStyle.color = getInkColorHex(tool);
-		this.activeStyle.opacity = tool === "highlighter" ? highlighterOpacity : undefined;
 		markPenSeen();
 		this.ensurePenTools();
 		// The strip stepped aside at contact, above; a strip only just created
 		// by ensurePenTools has not heard that yet, so tell it now.
 		this.mobileTools?.setInking(true);
 		this.activeWet = tool === "highlighter" ? this.highlightWet : this.wet;
+		this.highlightWet.opacity = tool === "highlighter" ? highlighterOpacity.value : 1;
 		// The wet layer's shaping follows the device per stroke: a mouse
 		// stroke draws flat live, exactly as it will commit.
 		const fromMouse = ev.pointerType === "mouse";
@@ -1913,7 +1916,7 @@ class InkOverlayPlugin {
 			this.activeStyle.baseWidth,
 			undefined,
 			fromMouse ? "mouse" : undefined,
-			tool === "highlighter" ? highlighterOpacity : undefined
+			tool === "highlighter" ? highlighterOpacity.value : undefined
 		);
 		this.builder.start(sample.timestamp);
 		const w = this.camera.screenToWorld(sample.x, sample.y);
@@ -1976,8 +1979,13 @@ class InkOverlayPlugin {
 				// Pen moved again after a dwell: discard the live preview so the
 				// user can correct the stroke before re-triggering snap.
 				if (this.liveSnapPreview) {
+					const ghost = this.liveSnapPreview;
 					this.liveSnapPreview = null;
-					// Repaint committed layer to erase the ghost shape.
+					// The preview was painted directly into the committed cache. Damage
+					// its exact area before asking for the normal store-backed repaint;
+					// otherwise the old crooked/freehand geometry survives underneath.
+					this.damage.addRect(padBBox(ghost.bbox, 6));
+					this.indexDirty = true;
 					this.scheduleRepaint("partial");
 				}
 			}
@@ -2254,7 +2262,7 @@ class InkOverlayPlugin {
 		if (!stroke || !path) {
 			this.activeWet.clear(this.cssWidth, this.cssHeight);
 			this.tail.clearAll(this.cssWidth, this.cssHeight);
-			this.highlightWetCanvas.setCssStyles({ opacity: String(HIGHLIGHTER_ALPHA) });
+			this.highlightWetCanvas.setCssStyles({ opacity: "1" });
 			return;
 		}
 		handoffFinishedStroke({
@@ -2296,7 +2304,7 @@ class InkOverlayPlugin {
 				// stroke. Restoring here rather than on the next pen-down
 				// keeps the element's resting state honest.
 				if (this.activeWet === this.highlightWet) {
-					this.highlightWetCanvas.setCssStyles({ opacity: String(HIGHLIGHTER_ALPHA) });
+					this.highlightWetCanvas.setCssStyles({ opacity: "1" });
 				}
 			},
 			publishHistory: () => {
@@ -2335,7 +2343,7 @@ class InkOverlayPlugin {
 			if (region) {
 				this.damage.addRect(region);
 				this.indexDirty = true;
-				this.scheduleRepaint();
+				this.scheduleRepaint("partial");
 			}
 		}
 		// Diagnostics (explicitly enabled only): paint ground truth part 2
@@ -2923,7 +2931,7 @@ class InkOverlayPlugin {
 					const pts = this.builder.currentPoints;
 					if (pts.length >= 8) {
 						const style = this.activeStyle;
-						const preview = snapPreview(pts, inlineTool, style.color, style.baseWidth, style.opacity);
+						const preview = snapPreview(pts, this.activeWet === this.highlightWet ? "highlighter" : "pen", style.color, style.baseWidth, this.activeWet === this.highlightWet ? highlighterOpacity.value : undefined);
 						if (preview) {
 							this.liveSnapPreview = preview;
 							// Draw the clean shape on the committed canvas immediately so
@@ -3018,56 +3026,29 @@ class InkOverlayPlugin {
 		return this.selection.bounds(this.strokesHere(), () => null, () => null);
 	}
 
-	private selectionHandleAt(p: Point2, b: BBox): number | null {
-		const pts = [
-			{ x: b.x, y: b.y }, { x: b.x + b.width / 2, y: b.y }, { x: b.x + b.width, y: b.y },
-			{ x: b.x + b.width, y: b.y + b.height / 2 }, { x: b.x + b.width, y: b.y + b.height },
-			{ x: b.x + b.width / 2, y: b.y + b.height }, { x: b.x, y: b.y + b.height }, { x: b.x, y: b.y + b.height / 2 },
+	private selectionHandleAt(p: { x: number; y: number }, b: BBox): "nw"|"ne"|"sw"|"se"|"n"|"e"|"s"|"w" | null {
+		const pad = visualToNote(12, this.scale);
+		const pts: Array<["nw"|"ne"|"sw"|"se"|"n"|"e"|"s"|"w", number, number]> = [
+			["nw",b.x,b.y],["ne",b.x+b.width,b.y],["sw",b.x,b.y+b.height],["se",b.x+b.width,b.y+b.height],
+			["n",b.x+b.width/2,b.y],["e",b.x+b.width,b.y+b.height/2],["s",b.x+b.width/2,b.y+b.height],["w",b.x,b.y+b.height/2],
 		];
-		const hit = visualToNote(SELECTION_HANDLE_HIT_PX, this.scale);
-		let best: number | null = null, dBest = Infinity;
-		pts.forEach((q, i) => { const d = Math.hypot(p.x - q.x, p.y - q.y); if (d <= hit && d < dBest) { best = i; dBest = d; } });
+		let best: typeof pts[number][0] | null = null, bestD = pad;
+		for (const [name,x,y] of pts) { const d=Math.hypot(p.x-x,p.y-y); if(d<=bestD){bestD=d;best=name;} }
 		return best;
-	}
-
-	private resizeHandlePoint(b: BBox, i: number): Point2 {
-		const x = i === 0 || i === 6 || i === 7 ? b.x : i === 2 || i === 3 || i === 4 ? b.x + b.width : b.x + b.width / 2;
-		const y = i === 0 || i === 1 || i === 2 ? b.y : i === 4 || i === 5 || i === 6 ? b.y + b.height : b.y + b.height / 2;
-		return { x, y };
-	}
-
-	private resizeOppositeCorner(b: BBox, i: number): Point2 {
-		const x = i === 0 || i === 7 || i === 6 ? b.x + b.width : b.x;
-		const y = i === 0 || i === 1 || i === 2 ? b.y + b.height : b.y;
-		return { x, y };
-	}
-
-	private scaleBBox(b: BBox, anchor: Point2, sx: number, sy: number): BBox {
-		const x0 = anchor.x + (b.x - anchor.x) * sx;
-		const x1 = anchor.x + (b.x + b.width - anchor.x) * sx;
-		const y0 = anchor.y + (b.y - anchor.y) * sy;
-		const y1 = anchor.y + (b.y + b.height - anchor.y) * sy;
-		return { x: Math.min(x0, x1), y: Math.min(y0, y1), width: Math.abs(x1 - x0), height: Math.abs(y1 - y0) };
 	}
 
 	private lassoDown(sample: PenSample): void {
 		const w = this.camera.screenToWorld(sample.x, sample.y);
 		const bounds = this.selectionBounds();
-		// Handles take precedence over the normal selection grab. A handle drag
-		// scales the selected ink around the opposite corner; the operation is
-		// committed as one replace-history step at release.
-		if (bounds) {
-			const handle = this.selectionHandleAt(w, bounds);
-			if (handle !== null && this.selection.strokeIds.length > 0) {
-				this.resizeHandle = handle;
-				this.resizeStartBounds = { ...bounds };
-				const all = this.strokesHere();
-				this.resizeStartStrokes = all.filter((st) => this.selection.hasStroke(st.id)).map((st) => ({ ...st, points: st.points.map((pt) => ({ ...pt })) , bbox: { ...st.bbox } }));
-				this.resizeStartIndices = all.map((st, i) => this.selection.hasStroke(st.id) ? i : -1).filter((i) => i >= 0);
-				this.dragFrom = { x: w.x, y: w.y };
-				this.dragTotal = { dx: 0, dy: 0 };
-				return;
-			}
+		const handle = bounds ? this.selectionHandleAt(w, bounds) : null;
+		if (bounds && handle) {
+			this.resizeHandle = handle;
+			this.resizeStartBounds = { ...bounds };
+			this.resizeLastBounds = { ...bounds };
+			this.resizeOriginal = this.strokesHere().filter(s => this.selection.hasStroke(s.id)).map(s => ({ ...s, points: s.points.map(p => ({ ...p })), bbox: { ...s.bbox } }));
+			this.dragFrom = { x: w.x, y: w.y };
+			this.dragTotal = { dx: 0, dy: 0 };
+			return;
 		}
 		// Landing inside an existing selection moves it; anywhere else lassos.
 		if (
@@ -3088,38 +3069,26 @@ class InkOverlayPlugin {
 		const last = samples[samples.length - 1];
 		if (!last) return;
 
-		if (this.resizeHandle !== null && this.resizeStartBounds && this.dragFrom) {
-			const path = this.filePath();
-			if (!path) return;
-			const b0 = this.resizeStartBounds;
-			const w = this.camera.screenToWorld(last.x, last.y);
-			const opposite = this.resizeOppositeCorner(b0, this.resizeHandle);
-			const anchor = opposite;
-			const startCorner = this.resizeHandlePoint(b0, this.resizeHandle);
-			const sx0 = startCorner.x - anchor.x;
-			const sy0 = startCorner.y - anchor.y;
-			const sx = Math.abs(sx0) < 1 ? 1 : (w.x - anchor.x) / sx0;
-			const sy = Math.abs(sy0) < 1 ? 1 : (w.y - anchor.y) / sy0;
-			const uniform = [0, 2, 4, 6].includes(this.resizeHandle);
-			const scaleX = uniform ? Math.sign(sx0 || 1) * Math.max(0.08, Math.abs(sx)) : Math.max(0.08, Math.abs(sx));
-			const scaleY = uniform ? Math.sign(sy0 || 1) * Math.max(0.08, Math.abs(sy)) : Math.max(0.08, Math.abs(sy));
-			const current = this.strokesHere();
-			for (const start of this.resizeStartStrokes) {
-				const live = current.find((st) => st.id === start.id);
-				if (!live) continue;
-				live.points = start.points.map((pt) => ({ ...pt, x: anchor.x + (pt.x - anchor.x) * scaleX, y: anchor.y + (pt.y - anchor.y) * scaleY }));
-				live.bbox = this.scaleBBox(start.bbox, anchor, scaleX, scaleY);
-			}
-			this.indexDirty = true;
-			this.scheduleRepaint();
-			this.repaintPath(path);
-			this.redrawSelectionUI();
-			return;
-		}
 		if (this.dragFrom && this.dragTotal) {
 			const path = this.filePath();
 			if (!path) return;
 			const w = this.camera.screenToWorld(last.x, last.y);
+			if (this.resizeHandle && this.resizeStartBounds && this.resizeLastBounds) {
+				const sb=this.resizeStartBounds; const min=8/this.scale;
+				const fixedX = this.resizeHandle.includes("w") ? sb.x+sb.width : this.resizeHandle.includes("e") ? sb.x : sb.x+sb.width/2;
+				const fixedY = this.resizeHandle.includes("n") ? sb.y+sb.height : this.resizeHandle.includes("s") ? sb.y : sb.y+sb.height/2;
+				let sx = this.resizeHandle.includes("w") || this.resizeHandle.includes("e") ? (this.resizeHandle.includes("w") ? (fixedX-w.x)/sb.width : (w.x-fixedX)/sb.width) : 1;
+				let sy = this.resizeHandle.includes("n") || this.resizeHandle.includes("s") ? (this.resizeHandle.includes("n") ? (fixedY-w.y)/sb.height : (w.y-fixedY)/sb.height) : 1;
+				if (sx < min/sb.width) sx = min/sb.width;
+				if (sy < min/sb.height) sy = min/sb.height;
+				const lastW=this.resizeLastBounds.width||1, lastH=this.resizeLastBounds.height||1;
+				const lastSX=(sx*sb.width)/lastW, lastSY=(sy*sb.height)/lastH;
+				inlineInk.scaleStrokes(path,this.selection.strokeIds,{x:fixedX,y:fixedY},lastSX,lastSY);
+				this.resizeLastBounds={x: fixedX + (this.resizeHandle.includes("w") ? -Math.abs(sx*sb.width) : 0), y: fixedY + (this.resizeHandle.includes("n") ? -Math.abs(sy*sb.height) : 0), width: Math.abs(sx*sb.width), height: Math.abs(sy*sb.height)};
+				this.dragFrom=w; this.damage.addAll(); this.indexDirty=true; this.scheduleRepaint(); this.repaintPath(path); this.redrawSelectionUI();
+				return;
+			}
+
 			const dx = w.x - this.dragFrom.x;
 			const dy = w.y - this.dragFrom.y;
 			// Live drag only translates coordinates in the store; the history
@@ -3168,29 +3137,19 @@ class InkOverlayPlugin {
 	}
 
 	private lassoUp(): void {
-		if (this.resizeHandle !== null) {
-			const path = this.filePath();
-			const after = path ? this.strokesHere().filter((st) => this.resizeStartStrokes.some((before: InkStroke) => before.id === st.id)).map((st) => ({ ...st, points: st.points.map((pt) => ({ ...pt })), bbox: { ...st.bbox } })) : [];
-			if (path && after.length > 0) {
-				inlineInk.save(path);
-				this.dispatchInk({ type: "replace", path, removed: this.resizeStartStrokes, removedAt: this.resizeStartIndices, inserted: after, insertedAt: this.resizeStartIndices });
-			}
-			this.resizeHandle = null;
-			this.resizeStartBounds = null;
-			this.resizeStartStrokes = [];
-			this.resizeStartIndices = [];
-			this.dragFrom = null;
-			this.dragTotal = null;
-			this.scheduleRepaint();
-			this.redrawSelectionUI();
-			return;
-		}
 		if (this.dragTotal) {
 			const { dx, dy } = this.dragTotal;
+			const wasResize = this.resizeHandle !== null;
+			const resizeOld = this.resizeOriginal;
 			this.dragFrom = null;
 			this.dragTotal = null;
+			this.resizeHandle = null; this.resizeStartBounds = null; this.resizeLastBounds = null; this.resizeOriginal = null;
 			const path = this.filePath();
-			if (path && (dx !== 0 || dy !== 0)) {
+			if (path && wasResize && resizeOld && resizeOld.length) {
+				const now = this.strokesHere().filter(s => resizeOld.some(o => o.id === s.id)).map(s => ({ ...s, points: s.points.map(p => ({ ...p })), bbox: { ...s.bbox } }));
+				inlineInk.save(path);
+				this.dispatchInk({ type: "replace", path, removed: resizeOld, removedAt: resizeOld.map(o => this.strokesHere().findIndex(s => s.id === o.id)), inserted: now, insertedAt: now.map(s => this.strokesHere().findIndex(x => x.id === s.id)) });
+			} else if (path && (dx !== 0 || dy !== 0)) {
 				// The op freezes WHICH strokes moved. An old move must never
 				// later act on whatever happens to be selected.
 				const strokeIds = [...this.selection.strokeIds];
@@ -3432,10 +3391,6 @@ class InkOverlayPlugin {
 		this.lassoActive = false;
 		this.dragFrom = null;
 		this.dragTotal = null;
-		this.resizeHandle = null;
-		this.resizeStartBounds = null;
-		this.resizeStartStrokes = [];
-		this.resizeStartIndices = [];
 		this.spaceLineY = null;
 		this.spaceIds = [];
 		this.spaceBounds = null;
@@ -3524,6 +3479,23 @@ class InkOverlayPlugin {
 		}
 		this.mobileTools?.refresh();
 		return strokes.length;
+	}
+
+	selectionStyle(): { tool: "pen" | "highlighter" | "mixed"; color: string; opacity: number } {
+		const selected = this.strokesHere().filter(s => this.selection.hasStroke(s.id));
+		if (!selected.length) return { tool: "pen", color: getInkColorHex("pen"), opacity: 1 };
+		const allHigh = selected.every(s => s.tool === "highlighter");
+		const allPen = selected.every(s => s.tool === "pen");
+		return { tool: allHigh ? "highlighter" : allPen ? "pen" : "mixed", color: selected[0]!.color, opacity: selected.filter(s=>s.tool === "highlighter")[0]?.opacity ?? highlighterOpacity.value };
+	}
+	setSelectionColor(hex: string): void { this.recolorSelectedInk(hex); }
+	setSelectionOpacity(value: number, commit: boolean): void {
+		const v = clampHighlighterOpacity(value); const path = this.filePath(); if (!path) return;
+		const selected = this.strokesHere().filter(s => this.selection.hasStroke(s.id) && s.tool === "highlighter"); if (!selected.length) return;
+		const old = selected.map(s => s.opacity ?? HIGHLIGHTER_ALPHA);
+		selected.forEach(s => { s.opacity = v; });
+		this.scheduleRepaint(); this.repaintPath(path); this.redrawSelectionUI();
+		if (commit) { persistHighlighterOpacity?.(v); this.dispatchInk({ type: "replace", path, removed: selected.map((s,i)=>({ ...s, opacity: old[i] })), removedAt: selected.map(s=>this.strokesHere().indexOf(s)), inserted: selected.map(s=>({ ...s, opacity:v })), insertedAt: selected.map(s=>this.strokesHere().indexOf(s)) }); }
 	}
 
 	/**
