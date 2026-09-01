@@ -482,8 +482,8 @@ function polygonFitError(
  * HEAD_MAX_PX: absolute cap on the arrowhead arm so oversized drawn wings
  *   do not produce an unreadably huge synthesized head.
  */
-const ARROW_HEAD_RATIO = 0.22;
-const ARROW_HEAD_ANGLE = Math.PI / 6; // 30 °
+const ARROW_HEAD_RATIO = 0.18;
+const ARROW_HEAD_ANGLE = Math.PI * 25 / 180; // 25 °
 const ARROW_HEAD_MAX_PX = 60;         // world-unit ceiling for the arm length
 
 /**
@@ -496,12 +496,11 @@ const ARROW_HEAD_MAX_PX = 60;         // world-unit ceiling for the arm length
  * shaftLen: straight-line distance tail→tip, used to size the arrowhead.
  */
 function synthArrow(shaftBody: readonly P[], tip: P, shaftLen: number): InkPoint[] {
-	// Derive the arrowhead direction from the final approach of the shaft,
-	// not the whole shaft direction - this gives the right angle even on
-	// strongly curved arrows.
-	const approachLen = Math.min(6, shaftBody.length - 1);
-	const approachFrom = shaftBody[Math.max(0, shaftBody.length - 1 - approachLen)]!;
-	const angle = Math.atan2(tip.y - approachFrom.y, tip.x - approachFrom.x);
+	// The synthesized head must be symmetric around the same axis used to
+	// recognize the arrow. Using the last few hand-drawn samples made the
+	// two wings skew whenever the approach was curved or noisy.
+	const tail = shaftBody[0]!;
+	const angle = Math.atan2(tip.y - tail.y, tip.x - tail.x);
 
 	// Cap the arrowhead arm: proportional to shaft but never huge.
 	const headLen = Math.min(shaftLen * ARROW_HEAD_RATIO, ARROW_HEAD_MAX_PX);
@@ -518,7 +517,6 @@ function synthArrow(shaftBody: readonly P[], tip: P, shaftLen: number): InkPoint
 	// line. The user's hand-drawn shaft is only evidence for recognition; once
 	// accepted, the geometry is deliberately exact and can never carry the
 	// original bow through the snap.
-	const tail = shaftBody[0]!;
 	const shaftPts = synthSegment(tail, tip);
 	const headT = shaftPts.length * 8;
 

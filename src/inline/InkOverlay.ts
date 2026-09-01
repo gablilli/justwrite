@@ -1230,7 +1230,11 @@ class InkOverlayPlugin {
 				const v = clampHighlighterOpacity(value);
 				highlighterOpacity.value = v;
 				if (commit) persistHighlighterOpacity?.(v);
-				this.highlightWet.opacity = v;
+				// Live highlighter uses CSS opacity on the whole wet canvas so the
+			// in-progress stroke has exactly the same alpha as the configured
+			// value, without renderer alpha being compounded by canvas redraws.
+			this.highlightWet.opacity = 1;
+			this.highlightWetCanvas.setCssStyles({ opacity: String(v) });
 			},
 			selectionPalette: () => [...colorsFor("pen"), ...colorsFor("highlighter")].filter((c,i,a)=>a.findIndex(x=>x.hex.toLowerCase()===c.hex.toLowerCase())===i),
 			selectionStyle: () => this.selectionStyle(),
@@ -1888,8 +1892,12 @@ class InkOverlayPlugin {
 		this.mobileTools?.setInking(true);
 		this.activeWet = tool === "highlighter" ? this.highlightWet : this.wet;
 		const liveOpacity = tool === "highlighter" ? highlighterOpacity.value : 1;
-		this.highlightWet.opacity = liveOpacity;
-		this.tail.opacity = liveOpacity;
+		// Keep the wet renderer opaque and apply the configured alpha once at
+		// the canvas level. This makes the live stroke visually match the
+		// committed stroke instead of appearing at 100% until pen-up.
+		this.highlightWet.opacity = 1;
+		this.highlightWetCanvas.setCssStyles({ opacity: tool === "highlighter" ? String(liveOpacity) : "1" });
+		this.tail.opacity = 1;
 		// The wet layer's shaping follows the device per stroke: a mouse
 		// stroke draws flat live, exactly as it will commit.
 		const fromMouse = ev.pointerType === "mouse";
