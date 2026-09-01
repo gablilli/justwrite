@@ -5,7 +5,6 @@ import { flattenStroke } from "./Ribbon";
 import { flattenStrokeShaped, inkShapingEnabled } from "./InkShape";
 import { fillRibbon } from "./RibbonRenderer";
 import { InkPoint, InkStroke } from "./Stroke";
-import { displayInkColor } from "./InkColor";
 
 /**
  * Segment-based variable-width polyline rendering, shared by the wet layer
@@ -14,9 +13,30 @@ import { displayInkColor } from "./InkColor";
  * incremental wet path is per-segment with round caps and joins.
  */
 
+/** Presentation-only color adaptation for Obsidian's dark theme.
+ * Persisted stroke colors are never changed. Pure enough to unit-test by
+ * passing an explicit darkTheme flag.
+ */
+export function renderColorForTheme(color: string, darkTheme: boolean): string {
+	const m = /^#([0-9a-f]{6})$/i.exec(color.trim());
+	if (!m) return color;
+	const r = parseInt(m[1]!.slice(0, 2), 16);
+	const g = parseInt(m[1]!.slice(2, 4), 16);
+	const b = parseInt(m[1]!.slice(4, 6), 16);
+	const brightness = Math.max(r, g, b);
+	// Never render an ink colour that disappears into the current theme.
+	// The stored value remains untouched, so changing theme can reveal the
+	// original semantic colour again.
+	if (darkTheme) return brightness <= 40 ? "#ffffff" : color;
+	return Math.min(r, g, b) >= 230 ? "#000000" : color;
+}
+
+function isDarkTheme(): boolean {
+	return typeof document !== "undefined" && document.body.classList.contains("theme-dark");
+}
+
 function strokeStyleFor(stroke: { color: string }): string {
-	const darkTheme = typeof document !== "undefined" && document.body.classList.contains("theme-dark");
-	return displayInkColor(stroke.color, darkTheme);
+	return renderColorForTheme(stroke.color, isDarkTheme());
 }
 
 /**
@@ -37,7 +57,7 @@ export function drawSegment(
 	const y2 = (to.y - cam.y) * cam.zoom;
 	// Average the two samples' pressures for the segment width.
 	const wWorld = widthForPressure(style, (from.pressure + to.pressure) / 2);
-	ctx.strokeStyle = strokeStyleFor(style);
+	ctx.strokeStyle = renderColorForTheme(style.color, isDarkTheme());
 	ctx.lineWidth = Math.max(0.5, wWorld * cam.zoom);
 	ctx.lineCap = "round";
 	ctx.lineJoin = "round";
@@ -63,7 +83,7 @@ export function drawSmoothSegment(
 	const cy = (seg.ctrl.y - cam.y) * cam.zoom;
 	const ex = (seg.to.x - cam.x) * cam.zoom;
 	const ey = (seg.to.y - cam.y) * cam.zoom;
-	ctx.strokeStyle = strokeStyleFor(style);
+	ctx.strokeStyle = renderColorForTheme(style.color, isDarkTheme());
 	ctx.lineWidth = Math.max(0.5, widthForPressure(style, seg.pressure) * cam.zoom);
 	ctx.lineCap = "round";
 	ctx.lineJoin = "round";
@@ -87,7 +107,7 @@ export function drawStroke(
 	// right on any layer without the caller having to remember which it was.
 	const flat = stroke.tool === "highlighter";
 	const style: PenStyle = {
-		color: stroke.color,
+		color: renderColorForTheme(stroke.color, isDarkTheme()),
 		baseWidth: stroke.width,
 		minWidthFactor: styleOverride?.minWidthFactor ?? (flat ? 0.9 : PEN_MIN_WIDTH_FACTOR),
 		gamma: styleOverride?.gamma ?? (flat ? 1 : 0.75),

@@ -522,7 +522,7 @@ export class MobileTools {
 					this.noFocus(sw);
 					sw.addEventListener("click", (ev) => {
 						ev.preventDefault();
-						this.host.exec(`handwriting:ink-color-${c.name}`);
+						this.host.setInkColorHex(c.hex);
 						this.refresh();
 					});
 				}

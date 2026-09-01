@@ -68,7 +68,7 @@ function smoothedControl(prevPrev: Point2 | undefined, cur: Point2, next: Point2
 	};
 }
 
-export const RENDER_SMOOTHING_STRENGTH = 0.32;
+export const RENDER_SMOOTHING_STRENGTH = 0.62;
 
 export function smoothSegments(
 	points: readonly InkPoint[],

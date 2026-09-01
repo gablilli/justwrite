@@ -6,7 +6,7 @@ import { IncrementalSmoother, Point2, RENDER_SMOOTHING_STRENGTH } from "./Smooth
 import { RibbonPt, flattenSegment, flattenSegmentHw } from "./Ribbon";
 import { IncrementalShaper, inkShapingEnabled } from "./InkShape";
 import { fillRibbon } from "./RibbonRenderer";
-import { drawSegment } from "./StrokeRenderer";
+import { drawSegment, renderColorForTheme } from "./StrokeRenderer";
 
 /**
  * The wet ink layer: incremental screen-space drawing of the stroke that is
@@ -142,7 +142,7 @@ export class WetInkRenderer {
 					const strip: RibbonPt[] = this.lastRibbon
 						? [this.lastRibbon, ...flatSeg]
 						: flatSeg;
-					fillRibbon(this.ctx, cam, strip, style.color);
+					fillRibbon(this.ctx, cam, strip, renderColorForTheme(style.color, typeof document !== "undefined" && document.body.classList.contains("theme-dark")));
 					this.lastRibbon = strip[strip.length - 1];
 				}
 				if (this.shapingThisStroke) this.prevSampleHw = sampleHw;
@@ -199,7 +199,7 @@ export class WetInkRenderer {
 		const strip: RibbonPt[] = this.lastRibbon
 			? [this.lastRibbon, ...flatSeg]
 			: flatSeg;
-		fillRibbon(this.ctx, cam, strip, style.color);
+		fillRibbon(this.ctx, cam, strip, renderColorForTheme(style.color, typeof document !== "undefined" && document.body.classList.contains("theme-dark")));
 		this.lastRibbon = strip[strip.length - 1];
 	}
 

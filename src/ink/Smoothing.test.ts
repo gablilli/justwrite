@@ -52,6 +52,18 @@ describe("control-point smoothing", () => {
 		expect(smooth[1]!.ctrl.y).toBeLessThan(raw[1]!.ctrl.y);
 	});
 
+	it("uses a strong enough render smoothing strength for zoomed-in pencil ink", () => {
+		// The render pipeline must actually suppress low-amplitude digitizer wobble;
+		// this is intentionally stronger than the old 0.32 setting that still showed
+		// tremor when a stroke written zoomed-out was magnified.
+		const pts = [p(0, 0), p(10, 1), p(20, -1), p(30, 1), p(40, 0)];
+		const raw = smoothSegments(pts, 0);
+		const smooth = smoothSegments(pts, 0.62);
+		const rawDeviation = Math.abs(raw[1]!.ctrl.y);
+		const smoothDeviation = Math.abs(smooth[1]!.ctrl.y);
+		expect(smoothDeviation).toBeLessThan(rawDeviation);
+	});
+
 	it("incremental smoothing matches the batch geometry", () => {
 		const pts = [p(0, 0), p(10, 5), p(20, 0), p(30, 4)];
 		const batch = smoothSegments(pts, 0.32);

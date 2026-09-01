@@ -72,7 +72,7 @@ import { BBox, InkStroke, InkTool, newStrokeId } from "../ink/Stroke";
 import { StrokeBuilder } from "../ink/StrokeBuilder";
 import { StrokeMetrics } from "../ink/StrokeMetrics";
 import { drawCommitted,
-	drawRegion, drawStroke } from "../ink/StrokeRenderer";
+	drawRegion, drawStroke, renderColorForTheme } from "../ink/StrokeRenderer";
 import { TailRenderer } from "../ink/TailRenderer";
 import { WetInkRenderer } from "../ink/WetInkRenderer";
 import { PenSample } from "../input/PointerRouter";
@@ -2836,7 +2836,7 @@ class InkOverlayPlugin {
 			width: `${cursor.diameter}px`,
 			height: `${cursor.diameter}px`,
 			transform: `translate(${cursor.x}px, ${cursor.y}px)`,
-			backgroundColor: getInkColorHex(tool),
+			backgroundColor: renderColorForTheme(getInkColorHex(tool), typeof document !== "undefined" && document.body.classList.contains("theme-dark")),
 			opacity: tool === "highlighter" ? String(HIGHLIGHTER_ALPHA) : "0.9",
 		});
 	}
@@ -3045,9 +3045,15 @@ class InkOverlayPlugin {
 			} else {
 				this.damage.addAll();
 			}
+			// A move changes the selected stroke's coverage at BOTH its old and new
+			// positions. Repainting only indexed damage can clear a highlighter/pen
+			// layer without restoring the other layer in the same compositor frame.
+			// During a drag correctness beats the partial-raster optimisation: rebuild
+			// both layers from the complete stroke list, so overlapping ink is never
+			// mistaken for an erased region.
 			this.strokeIndex.relocate(moving, oldBBoxes);
-			this.indexDirty = false;
-			this.scheduleRepaint("partial");
+			this.indexDirty = true;
+			this.scheduleRepaint();
 			this.repaintPath(path);
 			this.redrawSelectionUI();
 			return;

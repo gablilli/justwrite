@@ -143,6 +143,7 @@ export class HandwritingPageView extends TextFileView {
 	private dpr = 1;
 	private renderQueued = false;
 	private resizeObserver: ResizeObserver | null = null;
+	private themeObserver: MutationObserver | null = null;
 	private detachCamera: (() => void) | null = null;
 	private loadToken = 0;
 	/** False until the sidecar for the current file has been read. */
@@ -262,6 +263,10 @@ export class HandwritingPageView extends TextFileView {
 
 		this.resizeObserver = new ResizeObserver(() => this.handleResize());
 		this.resizeObserver.observe(this.rootEl);
+		if (typeof MutationObserver !== "undefined" && document.body) {
+			this.themeObserver = new MutationObserver(() => this.redrawCommitted());
+			this.themeObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+		}
 		this.handleResize();
 		this.textLayer.setCamera(this.camera.snapshot);
 		this.imageLayer.setCamera(this.camera.snapshot);
@@ -278,6 +283,8 @@ export class HandwritingPageView extends TextFileView {
 		this.router = null;
 		this.resizeObserver?.disconnect();
 		this.resizeObserver = null;
+		this.themeObserver?.disconnect();
+		this.themeObserver = null;
 		this.detachCamera?.();
 		this.detachCamera = null;
 	}
@@ -1562,11 +1569,6 @@ export class HandwritingPageView extends TextFileView {
 			}
 			this.redrawCommitted();
 		});
-	}
-
-	/** Repaint existing ink when Obsidian changes light/dark theme. */
-	refreshTheme(): void {
-		this.redrawCommitted();
 	}
 
 	private redrawCommitted(): void {

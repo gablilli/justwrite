@@ -3,6 +3,7 @@ import { PenSample } from "../input/PointerRouter";
 import { PenStyle, widthForPressure } from "./PenStyle";
 import { Point2 } from "./Smoothing";
 import { fillRibbon } from "./RibbonRenderer";
+import { renderColorForTheme } from "./StrokeRenderer";
 
 /**
  * How much width the predicted tail gives up by its tip.
@@ -112,7 +113,7 @@ export class TailRenderer {
 		if (world.length < 2) return;
 		const ctx = this.ctx;
 		ctx.save();
-		ctx.strokeStyle = color;
+		ctx.strokeStyle = renderColorForTheme(color, typeof document !== "undefined" && document.body.classList.contains("theme-dark"));
 		ctx.lineWidth = 1.5;
 		ctx.setLineDash([6, 4]);
 		ctx.beginPath();
@@ -141,7 +142,7 @@ export class TailRenderer {
 		const ctx = this.ctx;
 		const pad = 6;
 		ctx.save();
-		ctx.strokeStyle = color;
+		ctx.strokeStyle = renderColorForTheme(color, typeof document !== "undefined" && document.body.classList.contains("theme-dark"));
 		ctx.lineWidth = 1.5;
 		ctx.setLineDash([4, 4]);
 		ctx.strokeRect(
@@ -164,7 +165,7 @@ export class TailRenderer {
 		const y = (yWorld - cam.y) * cam.zoom;
 		const ctx = this.ctx;
 		ctx.save();
-		ctx.strokeStyle = color;
+		ctx.strokeStyle = renderColorForTheme(color, typeof document !== "undefined" && document.body.classList.contains("theme-dark"));
 		ctx.lineWidth = 1.5;
 		ctx.setLineDash([8, 5]);
 		ctx.beginPath();
@@ -200,7 +201,7 @@ export class TailRenderer {
 				{ x: from.x, y: from.y, hw },
 				{ x: to.x, y: to.y, hw },
 			],
-			style.color
+			renderColorForTheme(style.color, typeof document !== "undefined" && document.body.classList.contains("theme-dark"))
 		);
 		this.growDirty(x1, y1, x2, y2, hw * cam.zoom + 2);
 	}
@@ -244,7 +245,7 @@ export class TailRenderer {
 	): void {
 		if (points.length === 0) return;
 		const ctx = this.ctx;
-		ctx.strokeStyle = color;
+		ctx.strokeStyle = renderColorForTheme(color, typeof document !== "undefined" && document.body.classList.contains("theme-dark"));
 		ctx.lineCap = "round";
 		ctx.lineJoin = "round";
 		const base = Math.max(0.5, lineWidthPx);

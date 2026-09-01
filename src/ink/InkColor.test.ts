@@ -6,7 +6,6 @@ import {
 	getInkColorHex,
 	nextInkColor,
 	normalizeInkColor,
-	displayInkColor,
 	setInkColorHex,
 } from "./InkColor";
 import { DEFAULT_PEN, HIGHLIGHTER_PEN } from "./PenStyle";
@@ -23,18 +22,6 @@ describe("ink color palettes", () => {
 	it("defaults are the original Handwriting colors — old and new strokes agree", () => {
 		expect(PEN_COLORS[0]!.hex).toBe(DEFAULT_PEN.color);
 		expect(HIGHLIGHTER_COLORS[0]!.hex).toBe(HIGHLIGHTER_PEN.color);
-	});
-});
-
-describe("displayInkColor — theme readability without mutating stored colors", () => {
-	it("turns near-black custom ink white only on dark themes", () => {
-		expect(displayInkColor("#000000", true)).toBe("#ffffff");
-		expect(displayInkColor("#1c1f26", true)).toBe("#ffffff");
-		expect(displayInkColor("#000000", false)).toBe("#000000");
-	});
-	it("keeps non-black custom colors unchanged", () => {
-		expect(displayInkColor("#2f6de0", true)).toBe("#2f6de0");
-		expect(displayInkColor("#ff0000", true)).toBe("#ff0000");
 	});
 });
 
@@ -103,5 +90,13 @@ describe("per-tool selection state", () => {
 	it("colorsFor routes to the right palette", () => {
 		expect(colorsFor("pen")).toBe(PEN_COLORS);
 		expect(colorsFor("highlighter")).toBe(HIGHLIGHTER_COLORS);
+	});
+});
+
+
+describe("custom ink colors", () => {
+	it("accepts custom hex colors for both pen and highlighter", () => {
+		expect(setInkColorHex("pen", "#123456")).toBe("#123456");
+		expect(setInkColorHex("highlighter", "#654321")).toBe("#654321");
 	});
 });

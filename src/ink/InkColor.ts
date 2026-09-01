@@ -59,17 +59,6 @@ export function normalizeInkColor(tool: InkTool, value: unknown): string {
 }
 
 /** Pure, unit-tested: next palette entry; off-palette values restart at 0. */
-/** Adapt only near-black custom pen colors for dark-theme readability.
- * The stored stroke color is never mutated. */
-export function displayInkColor(hex: string, darkTheme: boolean): string {
-	if (!darkTheme || !HEX_RE.test(hex)) return hex;
-	const r = parseInt(hex.slice(1, 3), 16);
-	const g = parseInt(hex.slice(3, 5), 16);
-	const b = parseInt(hex.slice(5, 7), 16);
-	const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-	return luminance <= 0.14 ? "#ffffff" : hex;
-}
-
 export function nextInkColor(tool: InkTool, currentHex: string): InkColorChoice {
 	const palette = colorsFor(tool);
 	const i = palette.findIndex((c) => c.hex.toLowerCase() === currentHex.toLowerCase());
