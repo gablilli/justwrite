@@ -1,10 +1,10 @@
 {
 	"id": "justwrite",
 	"name": "JustWrite",
-	"version": "1.4.4",
+	"version": "1.4.5",
 	"minAppVersion": "1.12.3",
 	"description": "Write on your notes with a pen. Pressure ink, highlighter, eraser, and lasso directly on Markdown, saved beside your files.",
-	"author": "Alan",
+	"author": "gablilli",
 	"fundingUrl": {
 		"Ko-fi": "https://ko-fi.com/ellimistafk"
 	},
