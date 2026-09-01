@@ -1216,6 +1216,13 @@ class InkOverlayPlugin {
 				if (commit) persistInkSize?.(tool as InkTool, getInkSizeMult(tool as InkTool));
 			},
 			setInkColorHex: (hex) => {
+				// When the lasso has a selection, the palette acts on the selected
+				// strokes instead of silently changing the colour for future ink.
+				// With no selection it keeps the existing "active nib colour" meaning.
+				if (!this.selection.isEmpty) {
+					this.recolorSelectedInk(hex);
+					return;
+				}
 				const tool = getInlineTool();
 				const applied = applyInkColorHex(tool, hex);
 				persistInkColor?.(tool, applied);
@@ -3394,6 +3401,40 @@ class InkOverlayPlugin {
 		}
 		this.mobileTools?.refresh();
 		return strokes.length;
+	}
+
+	/**
+	 * Recolour exactly the strokes currently selected by the lasso. The
+	 * replacement keeps ids and z-order, so selection, move and undo/redo all
+	 * continue to refer to the same ink objects.
+	 */
+	recolorSelectedInk(hex: string): number {
+		const path = this.filePath();
+		if (!path || this.selection.isEmpty) return 0;
+		const wanted = new Set(this.selection.strokeIds);
+		const selected = this.strokesHere()
+			.map((stroke, index) => ({ stroke, index }))
+			.filter(({ stroke }) => wanted.has(stroke.id));
+		if (selected.length === 0) return 0;
+		const normalized = /^#[0-9a-f]{6}$/i.test(hex) ? hex.toLowerCase() : null;
+		if (!normalized) return 0;
+		const inserted = selected.map(({ stroke }) => ({ ...stroke, color: normalized }));
+		if (inserted.every((stroke, i) => stroke.color === selected[i]!.stroke.color)) return inserted.length;
+
+		inlineInk.applyRemove(path, selected.map(({ stroke }) => stroke.id));
+		inlineInk.applyAdd(path, inserted, selected.map(({ index }) => index));
+		this.dispatchInk({
+			type: "replace",
+			path,
+			removed: selected.map(({ stroke }) => stroke),
+			removedAt: selected.map(({ index }) => index),
+			inserted,
+			insertedAt: selected.map(({ index }) => index),
+		});
+		this.scheduleRepaint();
+		this.repaintPath(path);
+		this.redrawSelectionUI();
+		return inserted.length;
 	}
 
 	/**

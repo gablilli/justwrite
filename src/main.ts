@@ -663,6 +663,9 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 							);
 							return;
 						}
+						const file = this.app.workspace.getActiveFile();
+						const overlay = file ? overlayForPath(file.path) : null;
+						if (overlay?.recolorSelectedInk(choice.hex)) return;
 						runDetached(this.setInkColor(choice.hex, choice.name), "save the ink color", () =>
 							new Notice("JustWrite: the ink color changed, but the setting could not be saved.")
 						);
@@ -1313,6 +1316,13 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 		new Notice(
 			on ? "JustWrite: pressure sensitivity on" : "JustWrite: pressure sensitivity off"
 		);
+	}
+
+	async setInkColorForTool(tool: InkTool, hex: string): Promise<void> {
+		const applied = setInkColorHex(tool, hex);
+		this.settings.inkColors[tool] = applied;
+		await this.saveData(this.settings);
+		return;
 	}
 
 	private async setInkColor(hex: string, name: string): Promise<void> {

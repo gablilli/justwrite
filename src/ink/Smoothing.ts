@@ -50,7 +50,30 @@ export function midpoint(a: Point2, b: Point2): Point2 {
  * Whole-stroke smoothing, used for committed ink. The final segment runs out
  * to the true last sample so a finished stroke ends where the pen did.
  */
-export function smoothSegments(points: readonly InkPoint[]): SmoothSegment[] {
+/**
+ * Pull the quadratic control point toward the chord through its neighbours.
+ * This is deliberately control-point-only: segment endpoints remain the real
+ * sample midpoints, so smoothing adds no positional lag and the live head can
+ * still meet the nib exactly. A small amount of chord pull removes the
+ * high-frequency "tremble" that becomes obvious when a low-zoom stroke is
+ * magnified without changing the stored input data.
+ */
+function smoothedControl(prevPrev: Point2 | undefined, cur: Point2, next: Point2, strength: number): Point2 {
+	if (!prevPrev || strength <= 0) return { x: cur.x, y: cur.y };
+	const target = { x: (prevPrev.x + next.x) / 2, y: (prevPrev.y + next.y) / 2 };
+	const k = Math.min(1, Math.max(0, strength));
+	return {
+		x: cur.x + (target.x - cur.x) * k,
+		y: cur.y + (target.y - cur.y) * k,
+	};
+}
+
+export const RENDER_SMOOTHING_STRENGTH = 0.32;
+
+export function smoothSegments(
+	points: readonly InkPoint[],
+	controlSmoothing = 0
+): SmoothSegment[] {
 	const out: SmoothSegment[] = [];
 	if (points.length < 2) return out;
 	let prev = points[0]!;
@@ -60,7 +83,7 @@ export function smoothSegments(points: readonly InkPoint[]): SmoothSegment[] {
 		const mid = midpoint(prev, cur);
 		out.push({
 			from: lastMid ?? { x: prev.x, y: prev.y },
-			ctrl: { x: prev.x, y: prev.y },
+			ctrl: smoothedControl(i > 1 ? points[i - 2] : undefined, prev, cur, controlSmoothing),
 			to: mid,
 			pressure: (prev.pressure + cur.pressure) / 2,
 		});
@@ -86,11 +109,15 @@ export function smoothSegments(points: readonly InkPoint[]): SmoothSegment[] {
  */
 export class IncrementalSmoother {
 	private prev: InkPoint | undefined;
+	private prevPrev: InkPoint | undefined;
 	private lastMid: Point2 | undefined;
 	private lastPressure = 0.5;
 
+	constructor(private readonly controlSmoothing = 0) {}
+
 	reset(first?: InkPoint): void {
 		this.prev = first;
+		this.prevPrev = undefined;
 		this.lastMid = undefined;
 		this.lastPressure = first?.pressure ?? 0.5;
 	}
@@ -103,10 +130,11 @@ export class IncrementalSmoother {
 		const mid = midpoint(prev, point);
 		const seg: SmoothSegment = {
 			from: this.lastMid ?? { x: prev.x, y: prev.y },
-			ctrl: { x: prev.x, y: prev.y },
+			ctrl: smoothedControl(this.prevPrev, prev, point, this.controlSmoothing),
 			to: mid,
 			pressure: (prev.pressure + point.pressure) / 2,
 		};
+		this.prevPrev = prev;
 		this.lastMid = mid;
 		this.lastPressure = seg.pressure;
 		return seg;

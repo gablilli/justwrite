@@ -560,12 +560,9 @@ function synthArrow(shaftBody: readonly P[], tip: P, shaftLen: number): InkPoint
  *     counts as a wing once it deviates PERPENDICULARLY from the tail-tip
  *     axis by at least ARROW_FLUTTER_MIN (fraction of shaft length).
  *     "Spatially near", not "later in the point array": a tip search that
- *     lands - by a hair, on jitter - on the very last sampled point left
- *     nothing after it to inspect under the previous, order-based version,
- *     even though the actual wing ink was sitting right next to that tip,
- *     just a few samples earlier. One wing is enough - most real
- *     arrowheads only get two, but a single confident wing already says
- *     "arrow", not "line with a hook".
+ *     lands - by a hair - on jitter must not lose the actual head ink sitting
+ *     next to it. Both sides of the head now have to show a sustained off-axis
+ *     run; this keeps ordinary scribbles and end-of-line wrist jitter freehand.
  *
  * The shaft length gate matches MIN_PATH_LENGTH; a short flutter on a short
  * stroke is too ambiguous to classify as an arrow.
@@ -583,8 +580,8 @@ const ARROW_FLUTTER_MIN_ABS = 4;
 // A single noisy sample near the tip isn't a wing, it's jitter - a real
 // arrowhead's wing is ink drawn continuously off-axis, so require the
 // deviation to hold for a short run of consecutive samples before it counts.
-const ARROW_FLUTTER_MIN_RUN = 2;
-const ARROW_MAX_PATH_RATIO = 4.5; // pathLength / shaftLen ceiling before it's "wandering", not an arrow
+const ARROW_FLUTTER_MIN_RUN = 3;
+const ARROW_MAX_PATH_RATIO = 2.8; // pathLength / shaftLen ceiling before it's "wandering", not an arrow
 
 function classifyArrow(body: readonly P[]): SnapResult | null {
 	if (body.length < 12) return null;
@@ -613,25 +610,40 @@ function classifyArrow(body: readonly P[]): SnapResult | null {
 	const uy = (tip.y - tail.y) / shaftLen;
 	const tipRadius = shaftLen * ARROW_TIP_RADIUS;
 	const flutterThreshold = Math.max(shaftLen * ARROW_FLUTTER_MIN, ARROW_FLUTTER_MIN_ABS);
-	let sawWing = false;
 	let shaftEndIdx = body.length - 1;
-	let run = 0;
+	let positiveRun = 0;
+	let negativeRun = 0;
+	let positiveWing = false;
+	let negativeWing = false;
 	for (let i = 0; i < body.length; i++) {
 		const p = body[i]!;
-		if (dist(p, tip) > tipRadius) { run = 0; continue; }
+		if (dist(p, tip) > tipRadius) {
+			positiveRun = 0;
+			negativeRun = 0;
+			continue;
+		}
 		// First sample inside the arrowhead zone — shaft ends just before here.
 		if (shaftEndIdx === body.length - 1) shaftEndIdx = Math.max(0, i - 1);
 		const vx = p.x - tail.x;
 		const vy = p.y - tail.y;
-		const perp = Math.abs(vx * uy - vy * ux);
-		if (perp > flutterThreshold) {
-			run++;
-			if (run >= ARROW_FLUTTER_MIN_RUN) { sawWing = true; break; }
+		const signedPerp = vx * uy - vy * ux;
+		if (signedPerp > flutterThreshold) {
+			positiveRun++;
+			negativeRun = 0;
+			if (positiveRun >= ARROW_FLUTTER_MIN_RUN) positiveWing = true;
+		} else if (signedPerp < -flutterThreshold) {
+			negativeRun++;
+			positiveRun = 0;
+			if (negativeRun >= ARROW_FLUTTER_MIN_RUN) negativeWing = true;
 		} else {
-			run = 0;
+			positiveRun = 0;
+			negativeRun = 0;
 		}
 	}
-	if (!sawWing) return null;
+	// A real arrowhead has two sides. Requiring one wing on each side makes
+	// ordinary scribbles and end-of-line wrist jitter overwhelmingly less
+	// likely to be rewritten as an arrow.
+	if (!positiveWing || !negativeWing) return null;
 
 	// Shaft body: drawn points from tail up to the arrowhead zone.
 	const shaftBody = body.slice(0, shaftEndIdx + 1);

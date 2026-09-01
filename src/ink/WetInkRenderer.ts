@@ -2,7 +2,7 @@ import { CameraState } from "../camera/coordinates";
 import { countPaintedPixels } from "../diag/Raster";
 import { PenStyle, widthForPressure } from "./PenStyle";
 import { InkPoint } from "./Stroke";
-import { IncrementalSmoother, Point2 } from "./Smoothing";
+import { IncrementalSmoother, Point2, RENDER_SMOOTHING_STRENGTH } from "./Smoothing";
 import { RibbonPt, flattenSegment, flattenSegmentHw } from "./Ribbon";
 import { IncrementalShaper, inkShapingEnabled } from "./InkShape";
 import { fillRibbon } from "./RibbonRenderer";
@@ -34,7 +34,7 @@ export interface CanvasAttrs {
 export class WetInkRenderer {
 	private ctx: CanvasRenderingContext2D;
 	private lastPoint: InkPoint | undefined;
-	private smoother = new IncrementalSmoother();
+	private smoother = new IncrementalSmoother(RENDER_SMOOTHING_STRENGTH);
 	private lastRibbon: RibbonPt | undefined;
 
 	/** What we asked Chromium for. */

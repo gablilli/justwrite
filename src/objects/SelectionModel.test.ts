@@ -50,6 +50,29 @@ describe("SelectionModel", () => {
 		expect(sel.size).toBe(2);
 	});
 
+	it("does not select text merely because it falls inside a selected stroke's bbox", () => {
+		const sel = new SelectionModel();
+		const lasso = [
+			{ x: 0, y: 0 },
+			{ x: 100, y: 0 },
+			{ x: 0, y: 100 },
+		];
+		// This stroke crosses the lasso, so it is selected, while the text box
+		// sits in the stroke's padded bbox but outside the actual lasso.
+		const crossed = stroke("s-crossed", [[20, 20], [80, 80]]);
+		const textOutsideLasso: TextBoxData[] = [
+			{ id: "b-out", x: 70, y: 70, width: 20, z: 0 },
+		];
+		sel.selectByLasso(
+			lasso,
+			[crossed],
+			textOutsideLasso,
+			() => ({ x: 70, y: 70, width: 20, height: 30 })
+		);
+		expect(sel.strokeIds).toEqual(["s-crossed"]);
+		expect(sel.boxIds).toEqual([]);
+	});
+
 	it("replaces the previous selection rather than adding to it", () => {
 		const sel = new SelectionModel();
 		const strokes = [stroke("s-in", [[10, 10], [50, 50]])];

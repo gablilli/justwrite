@@ -1,5 +1,5 @@
 import { PenStyle, tiltFactor, widthForPressure } from "./PenStyle";
-import { smoothSegments } from "./Smoothing";
+import { RENDER_SMOOTHING_STRENGTH, smoothSegments } from "./Smoothing";
 import { InkPoint } from "./Stroke";
 import { RibbonPt, flattenSegmentHw } from "./Ribbon";
 
@@ -60,12 +60,11 @@ export const PEN_SHAPE: ShapeParams = {
 	// nib WIDTH, so a fat nib tapers over a longer distance and a short stroke
 	// hits this cap: measured 2026-08-29, a 2.5x nib gave up 27% of a short
 	// stroke and 24% of a long one, which reads as the end being clipped off.
-	// At 0.18 it holds near 14% whatever the nib. The tip floor was raised
-	// from 0.12 (2026-08-30): a true near-zero tip read as "the stroke just
-	// stops" on most nib sizes rather than as a deliberate pen tip, so ends
-	// still narrow but land on a soft point instead of a needle.
+	// The tip floor is deliberately high: a true near-zero tip reads as
+	// "the stroke just stops" on most nib sizes, while a soft ~2/3-width tip
+	// keeps the beginning and end visually continuous with the body.
 	taperMaxShare: 0.18,
-	tipFloor: 0.4,
+	tipFloor: 0.68,
 };
 
 // ---- global switch ----------------------------------------------------------
@@ -177,7 +176,7 @@ export function flattenStrokeShaped(
 		const p = points[0]!;
 		return [{ x: p.x, y: p.y, hw: hws[0]! }];
 	}
-	const segs = smoothSegments(points);
+	const segs = smoothSegments(points, RENDER_SMOOTHING_STRENGTH);
 	const midHw = (a: number, b: number) => (hws[a]! + hws[b]!) / 2;
 	const last = points.length - 1;
 	const out: RibbonPt[] = [{ x: segs[0]!.from.x, y: segs[0]!.from.y, hw: hws[0]! }];

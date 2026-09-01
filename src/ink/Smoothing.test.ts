@@ -43,6 +43,31 @@ describe("smoothSegments", () => {
 	});
 });
 
+describe("control-point smoothing", () => {
+	it("pulls a noisy bend toward its neighbour chord without moving endpoints", () => {
+		const raw = smoothSegments([p(0, 0), p(10, 5), p(20, 0)], 0);
+		const smooth = smoothSegments([p(0, 0), p(10, 5), p(20, 0)], 0.5);
+		expect(smooth[1]!.from).toEqual(raw[1]!.from);
+		expect(smooth[1]!.to).toEqual(raw[1]!.to);
+		expect(smooth[1]!.ctrl.y).toBeLessThan(raw[1]!.ctrl.y);
+	});
+
+	it("incremental smoothing matches the batch geometry", () => {
+		const pts = [p(0, 0), p(10, 5), p(20, 0), p(30, 4)];
+		const batch = smoothSegments(pts, 0.32);
+		const inc = new IncrementalSmoother(0.32);
+		inc.reset(pts[0]);
+		const live = [];
+		for (let i = 1; i < pts.length; i++) {
+			const seg = inc.push(pts[i]!);
+			if (seg) live.push(seg);
+		}
+		const tail = inc.finish();
+		if (tail) live.push(tail);
+		expect(live).toEqual(batch);
+	});
+});
+
 describe("IncrementalSmoother", () => {
 	it("emits nothing until it has two samples", () => {
 		const s = new IncrementalSmoother();

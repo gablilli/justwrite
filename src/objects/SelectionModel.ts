@@ -95,6 +95,7 @@ export class SelectionModel {
 			const rect = imageRectOf(image.id);
 			if (rect && rectInLasso(rect, polygon, bounds)) this.images.add(image.id);
 		}
+
 	}
 
 	/**

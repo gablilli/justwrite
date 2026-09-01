@@ -4,6 +4,7 @@ import { CameraState } from "../camera/coordinates";
 import { telemetry } from "../diag/Telemetry";
 import { PointerRouter, PenSample } from "../input/PointerRouter";
 import { DEFAULT_PEN, HIGHLIGHTER_PEN, PenStyle, widthForPressure } from "../ink/PenStyle";
+import { normalizeInkColor, setInkColorHex } from "../ink/InkColor";
 import { InkStroke, InkTool } from "../ink/Stroke";
 import { StrokeBuilder } from "../ink/StrokeBuilder";
 import { drawCommitted, drawStroke } from "../ink/StrokeRenderer";
@@ -48,7 +49,9 @@ export interface HandwritingHost {
 	getCamera(pageId: string): CameraState | undefined;
 	setCamera(pageId: string, cam: CameraState): void;
 	/** Geometry smoothing verdict from the pen lab; false = approved pipeline. */
-	settings: { smoothInk: boolean };
+	settings: { smoothInk: boolean; inkColors: { pen: string; highlighter: string } };
+	/** Persist the active colour for the standalone canvas surface. */
+	setInkColorForTool(tool: InkTool, hex: string): Promise<void>;
 	/**
 	 * Paths deliberately sent to the canvas (the open-on-canvas command).
 	 * Everything else that lands in a live canvas view bounces back to
@@ -213,6 +216,8 @@ export class HandwritingPageView extends TextFileView {
 		this.caretEl = this.rootEl.createDiv({ cls: "justwrite-caret" });
 		this.eraserEl = this.rootEl.createDiv({ cls: "justwrite-eraser-cursor" });
 
+		this.penStyle.color = normalizeInkColor("pen", this.host.settings.inkColors.pen);
+		this.highlighterStyle.color = normalizeInkColor("highlighter", this.host.settings.inkColors.highlighter);
 		this.buildToolbar();
 		this.statusEl = this.rootEl.createDiv({ cls: "justwrite-status" });
 
@@ -1119,6 +1124,45 @@ export class HandwritingPageView extends TextFileView {
 
 	// ---- lasso & selection (§26, §58, §78) ----------------------------------
 
+	private activeInkTool(): InkTool {
+		return this.tool === "highlighter" ? "highlighter" : "pen";
+	}
+
+	private currentInkColor(): string {
+		return this.activeInkTool() === "highlighter" ? this.highlighterStyle.color : this.penStyle.color;
+	}
+
+	private setActiveInkColor(hex: string): void {
+		const tool = this.activeInkTool();
+		const applied = setInkColorHex(tool, hex);
+		if (tool === "highlighter") this.highlighterStyle.color = applied;
+		else this.penStyle.color = applied;
+		void this.host.setInkColorForTool(tool, applied);
+	}
+
+	private recolorSelectedStrokes(hex: string): void {
+		const normalized = normalizeInkColor(this.activeInkTool(), hex);
+		const selected = this.page.strokes
+			.map((stroke, index) => ({ stroke, index }))
+			.filter(({ stroke }) => this.selection.hasStroke(stroke.id));
+		if (selected.length === 0) return;
+		const oldColors = selected.map(({ stroke }) => stroke.color);
+		const inserted = selected.map(({ stroke }) => ({ ...stroke, color: normalized }));
+		if (inserted.every((stroke, i) => stroke.color === oldColors[i])) return;
+		const apply = () => {
+			for (const item of selected) item.stroke.color = normalized;
+			this.redrawCommitted();
+			this.saveSpatial();
+		};
+		const invert = () => {
+			selected.forEach((item, i) => { item.stroke.color = oldColors[i]!; });
+			this.redrawCommitted();
+			this.saveSpatial();
+		};
+		apply();
+		this.history.push({ label: `Recolor ${selected.length} stroke(s)`, apply, invert });
+	}
+
 	private hasSelection(): boolean {
 		return !this.selection.isEmpty;
 	}
@@ -1390,6 +1434,18 @@ export class HandwritingPageView extends TextFileView {
 		addTool("Lasso", () => this.tool === "lasso", () => {
 			this.tool = "lasso";
 			this.clearCaret();
+		});
+
+		const colorLabel = toolbar.createEl("label", { cls: "justwrite-color-control", attr: { title: "Ink color; recolors lasso selection when one is active" } });
+		colorLabel.createSpan({ text: "Color" });
+		const colorInput = colorLabel.createEl("input", {
+			attr: { type: "color", value: this.currentInkColor(), "aria-label": "Ink color" },
+		});
+		colorInput.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+		colorInput.addEventListener("change", () => {
+			const hex = normalizeInkColor(this.activeInkTool(), colorInput.value);
+			if (this.hasSelection()) this.recolorSelectedStrokes(hex);
+			else this.setActiveInkColor(hex);
 		});
 
 		const undoBtn = toolbar.createEl("button", { text: "Undo" });

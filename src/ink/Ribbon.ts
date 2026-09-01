@@ -1,5 +1,5 @@
 import { PenStyle, widthForPressure } from "./PenStyle";
-import { Point2, SmoothSegment, smoothSegments } from "./Smoothing";
+import { Point2, RENDER_SMOOTHING_STRENGTH, SmoothSegment, smoothSegments } from "./Smoothing";
 import { InkPoint } from "./Stroke";
 
 /**
@@ -140,7 +140,7 @@ export function flattenStroke(
 	if (points.length === 1) {
 		return [{ x: first.x, y: first.y, hw: widthForPressure(style, first.pressure) / 2 }];
 	}
-	const segs = smoothSegments(points);
+	const segs = smoothSegments(points, RENDER_SMOOTHING_STRENGTH);
 	const out: RibbonPt[] = [
 		{ x: segs[0]!.from.x, y: segs[0]!.from.y, hw: widthForPressure(style, segs[0]!.pressure) / 2 },
 	];

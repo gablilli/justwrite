@@ -420,7 +420,7 @@ describe("arrow snap", () => {
 		expect(xs.filter((x) => maxX - x > 5).length).toBeGreaterThan(0);
 	});
 
-	it("an arrowhead with only one wing (the other never drawn) still snaps to an arrow", () => {
+	it("an arrowhead with only one wing stays freehand", () => {
 		const n = 40;
 		const pts: InkPoint[] = [];
 		for (let i = 0; i < n; i++) {
@@ -437,11 +437,7 @@ describe("arrow snap", () => {
 				t: (n + k) * 10,
 			});
 		}
-		const s = snapStroke(strokeOf(withDwell(pts)));
-		expect(s).not.toBe(null);
-		const xs = s!.points.map((p) => p.x);
-		const maxX = Math.max(...xs);
-		expect(xs.filter((x) => maxX - x > 5).length).toBeGreaterThan(0);
+		expect(snapStroke(strokeOf(withDwell(pts)))).toBe(null);
 	});
 
 	it("a large, lopsided arrowhead doesn't hijack the shaft axis", () => {
@@ -504,3 +500,17 @@ describe("arrow snap", () => {
 	});
 });
 
+
+
+describe("arrow recognition is conservative", () => {
+	it("does not turn a wandering scribble into an arrow", () => {
+		const points = Array.from({ length: 90 }, (_, i) => ({
+			x: i * 2.5,
+			y: Math.sin(i * 1.7) * 32,
+			pressure: 0.5,
+			t: i * 8,
+		}));
+		const stroke = strokeOf(points);
+		expect(snapStroke(stroke, true)).toBeNull();
+	});
+});
