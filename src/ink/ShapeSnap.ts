@@ -561,8 +561,8 @@ function synthArrow(shaftBody: readonly P[], tip: P, shaftLen: number): InkPoint
  *     axis by at least ARROW_FLUTTER_MIN (fraction of shaft length).
  *     "Spatially near", not "later in the point array": a tip search that
  *     lands - by a hair - on jitter must not lose the actual head ink sitting
- *     next to it. Both sides of the head now have to show a sustained off-axis
- *     run; this keeps ordinary scribbles and end-of-line wrist jitter freehand.
+ *     next to it. Both sides of the head have to clear the flutter bar; this
+ *     keeps ordinary scribbles and end-of-line wrist jitter freehand.
  *
  * The shaft length gate matches MIN_PATH_LENGTH; a short flutter on a short
  * stroke is too ambiguous to classify as an arrow.
@@ -577,23 +577,53 @@ const ARROW_FLUTTER_MIN = 0.03;  // min perp deviation fraction = arrowhead wing
 // a user, 2026-09-01). A wing has to clear this many world units regardless
 // of how short the shaft is.
 const ARROW_FLUTTER_MIN_ABS = 4;
-// A single noisy sample near the tip isn't a wing, it's jitter - a real
-// arrowhead's wing is ink drawn continuously off-axis, so require the
-// deviation to hold for a short run of consecutive samples before it counts.
-const ARROW_FLUTTER_MIN_RUN = 3;
+// Wing evidence is the PEAK deviation on each side of the axis within the
+// tip zone, not a run of consecutive same-sign samples. A real arrowhead
+// drawn quickly flutters back and forth almost every sample (the pen
+// overshoots one side, then the other, then settles) so consecutive samples
+// legitimately alternate sign - a same-sign-run test can never fire on that
+// data no matter how large the flutter is (hardware, 2026-08-31). A single
+// noisy sample still can't fake a wing on its own: it would have to clear
+// the flutter bar on BOTH sides of the axis (not just one), which ordinary
+// jitter essentially never does, and the whole shaft still has to pass the
+// path-ratio scribble check below.
 const ARROW_MAX_PATH_RATIO = 2.8; // pathLength / shaftLen ceiling before it's "wandering", not an arrow
+const ARROW_TIP_HYSTERESIS = 2; // world units a candidate must clear the current tip by to replace it
 
-function classifyArrow(body: readonly P[]): SnapResult | null {
+interface WingScan {
+	tail: P;
+	tip: P;
+	tipIndex: number;
+	shaftLen: number;
+	shaftEndIdx: number;
+	positiveWing: boolean;
+	negativeWing: boolean;
+}
+
+/**
+ * Shared tip + wing evidence gathering for arrow recognition. Returns null
+ * when there isn't even enough shaft to consider (too short, or the ink
+ * wandered too much to trust a tail→tip axis at all) - that's "no evidence
+ * either way", not "definitely not an arrow", and callers treat it as such.
+ */
+function scanForWings(body: readonly P[]): WingScan | null {
 	if (body.length < 12) return null;
 
 	// 1. Tail = where the stroke started. Tip = farthest point from it.
+	//    A wing's very first samples sit almost exactly where the tip is -
+	//    that's the point of a wing - so ordinary per-sample jitter can push
+	//    an early wing sample a hair farther from the tail than the actual
+	//    shaft end, stealing the tip away from the real corner (hardware,
+	//    2026-08-31). A candidate has to beat the current farthest point by
+	//    more than plain jitter before it takes over, so the true shaft end
+	//    isn't discarded for a few tenths of a world unit of noise.
 	const tail = body[0]!;
 	let tip = tail;
 	let tipIndex = 0;
 	let shaftLen = 0;
 	for (let i = 1; i < body.length; i++) {
 		const d = dist(tail, body[i]!);
-		if (d > shaftLen) { shaftLen = d; tip = body[i]!; tipIndex = i; }
+		if (d > shaftLen + ARROW_TIP_HYSTERESIS) { shaftLen = d; tip = body[i]!; tipIndex = i; }
 	}
 	if (shaftLen < MIN_PATH_LENGTH) return null;
 
@@ -612,57 +642,54 @@ function classifyArrow(body: readonly P[]): SnapResult | null {
 	const tipRadius = shaftLen * ARROW_TIP_RADIUS;
 	const flutterThreshold = Math.max(shaftLen * ARROW_FLUTTER_MIN, ARROW_FLUTTER_MIN_ABS);
 	let shaftEndIdx = body.length - 1;
-	let positiveRun = 0;
-	let negativeRun = 0;
-	let positiveWing = false;
-	let negativeWing = false;
+	let maxPerp = -Infinity;
+	let minPerp = Infinity;
 	// The arrowhead is drawn after reaching the tip. Do not inspect the
 	// shaft before the farthest point: a bowed shaft can legitimately sit
 	// on one side of the tail→tip axis and must not become a fake wing.
 	for (let i = tipIndex + 1; i < body.length; i++) {
 		const p = body[i]!;
-		if (dist(p, tip) > tipRadius) {
-			positiveRun = 0;
-			negativeRun = 0;
-			continue;
-		}
+		if (dist(p, tip) > tipRadius) continue;
 		// First sample inside the arrowhead zone — shaft ends just before here.
 		if (shaftEndIdx === body.length - 1) shaftEndIdx = Math.max(0, i - 1);
 		const vx = p.x - tail.x;
 		const vy = p.y - tail.y;
 		const signedPerp = vx * uy - vy * ux;
-		if (signedPerp > flutterThreshold) {
-			positiveRun++;
-			negativeRun = 0;
-			if (positiveRun >= ARROW_FLUTTER_MIN_RUN) positiveWing = true;
-		} else if (signedPerp < -flutterThreshold) {
-			negativeRun++;
-			positiveRun = 0;
-			if (negativeRun >= ARROW_FLUTTER_MIN_RUN) negativeWing = true;
-		} else {
-			positiveRun = 0;
-			negativeRun = 0;
-		}
+		if (signedPerp > maxPerp) maxPerp = signedPerp;
+		if (signedPerp < minPerp) minPerp = signedPerp;
 	}
-	// A real arrowhead has two sides. Requiring one wing on each side makes
-	// ordinary scribbles and end-of-line wrist jitter overwhelmingly less
-	// likely to be rewritten as an arrow.
-	// Because the scan starts after the tip, the check is also directional:
-	// a small oscillation while approaching the tip cannot manufacture the
-	// missing second wing.
-	if (!positiveWing || !negativeWing) return null;
-
-	// Shaft body: drawn points from tail up to the arrowhead zone.
-	const shaftBody = body.slice(0, shaftEndIdx + 1);
-	return { kind: "arrow", points: synthArrow(shaftBody.length > 1 ? shaftBody : [tail], tip, shaftLen) };
+	return {
+		tail,
+		tip,
+		tipIndex,
+		shaftLen,
+		shaftEndIdx,
+		positiveWing: maxPerp > flutterThreshold,
+		negativeWing: minPerp < -flutterThreshold,
+	};
 }
 
 function classifyOpen(body: readonly P[]): SnapResult | null {
 	// Try arrow first: an arrow is a strict superset of a line, so a line
 	// that happens to have flutter at one end would otherwise win the wrong
-	// shape. Arrow recognition short-circuits before line.
-	const arrow = classifyArrow(body);
-	if (arrow) return arrow;
+	// shape. Arrow recognition short-circuits before line. A real arrowhead
+	// has two sides - requiring one wing on each side makes ordinary
+	// scribbles and end-of-line wrist jitter overwhelmingly less likely to
+	// be rewritten as an arrow. Because the scan starts after the tip, the
+	// check is also directional: a small oscillation while approaching the
+	// tip cannot manufacture the missing second wing.
+	const scan = scanForWings(body);
+	if (scan && scan.positiveWing && scan.negativeWing) {
+		const shaftBody = body.slice(0, scan.shaftEndIdx + 1);
+		return {
+			kind: "arrow",
+			points: synthArrow(shaftBody.length > 1 ? shaftBody : [scan.tail], scan.tip, scan.shaftLen),
+		};
+	}
+	// Exactly one wing is a partial, ambiguous arrowhead attempt - not
+	// confidently a line either, so the stroke stays freehand rather than
+	// guessing wrong in either direction.
+	if (scan && (scan.positiveWing || scan.negativeWing)) return null;
 
 	const a = body[0]!;
 	const b = body[body.length - 1]!;
