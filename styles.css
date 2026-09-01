@@ -1064,3 +1064,23 @@ body.justwrite-active-page .status-bar {
 .justwrite-slider-pop .justwrite-slider-slot { width: 116px !important; height: 30px !important; }
 .justwrite-slider-pop .justwrite-eraser-slider { transform: none !important; width: 110px !important; left: 50% !important; top: 50% !important; }
 .justwrite-selection-panel { right: 0; min-width: 190px; }
+
+/* Tool dialogs must be truly opaque: the old pop opacity made the panel
+   translucent on dark themes and let the document show through. */
+.justwrite-slider-pop,
+.justwrite-tool-panel {
+	background-color: var(--background-secondary) !important;
+	background-image: none !important;
+	opacity: 1 !important;
+	backdrop-filter: none !important;
+	-webkit-backdrop-filter: none !important;
+}
+.justwrite-tool-panel { width: 210px; }
+.justwrite-tool-panel .justwrite-slider-val {
+	min-width: 38px;
+	width: 38px;
+	font-size: 10px;
+	overflow: visible;
+	white-space: nowrap;
+}
+.justwrite-opacity-row .justwrite-slider-val { min-width: 38px; width: 38px; }

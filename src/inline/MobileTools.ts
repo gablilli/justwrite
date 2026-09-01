@@ -398,7 +398,6 @@ export class MobileTools {
 			(v, c) => this.host.setInkSizeMult("highlighter", v, c)
 		);
 		this.selectionPanel = this.el.createDiv({ cls: "justwrite-slider-pop justwrite-tool-panel justwrite-selection-panel" });
-		this.selectionPanel.createDiv({ cls: "justwrite-selection-title", text: "Selection" });
 		const selGrid = this.selectionPanel.createDiv({ cls: "justwrite-color-grid" });
 		this.selectionGrid = selGrid;
 		const selOpacityRow = this.selectionPanel.createDiv({ cls: "justwrite-hslider-row justwrite-opacity-row" });
@@ -410,7 +409,6 @@ export class MobileTools {
 		this.selectionOpacityVal = selOpacityVal;
 		selOpacity.addEventListener("input", () => { selOpacityVal.setText(`${selOpacity.value}%`); this.host.setSelectionOpacity(Number(selOpacity.value)/100, false); });
 		selOpacity.addEventListener("change", () => this.host.setSelectionOpacity(Number(selOpacity.value)/100, true));
-		this.selectionPanel.createDiv({ cls: "justwrite-selection-note", text: "Opacity applies to highlighted strokes." });
 		this.refreshNow();
 		this.setCollapsed(collapsedSession);
 	}
@@ -582,7 +580,7 @@ export class MobileTools {
 		};
 		if (this.selectionPanel.classList.contains("is-showing")) {
 			if (!this.host.hasInkSelection() || !this.host.lassoOn()) this.selectionPanel.removeClass("is-showing");
-			else { const ss=this.host.selectionStyle(); this.selectionGrid.empty(); for(const c of this.host.selectionPalette()){const sw=this.selectionGrid.createEl("button",{cls:"justwrite-color-swatch",attr:{type:"button","aria-label":c.name}});const dot=sw.createSpan({cls:"justwrite-color-swatch-dot"});dot.setCssStyles({backgroundColor:c.hex});sw.toggleClass("is-current",c.hex.toLowerCase()===ss.color.toLowerCase());sw.addEventListener("click",()=>{this.host.setSelectionColor(c.hex);this.refresh();});} this.selectionOpacityInput.value=String(Math.round(ss.opacity*100));this.selectionOpacityVal.setText(`${Math.round(ss.opacity*100)}%`);this.selectionOpacityInput.disabled=ss.tool==="pen";this.selectionOpacityLabel.setText(ss.tool==="pen"?"Opacity (highlighter only)":"Opacity"); }
+			else { const ss=this.host.selectionStyle(); this.selectionGrid.empty(); for(const c of this.host.selectionPalette()){const sw=this.selectionGrid.createEl("button",{cls:"justwrite-color-swatch",attr:{type:"button","aria-label":c.name}});const dot=sw.createSpan({cls:"justwrite-color-swatch-dot"});dot.setCssStyles({backgroundColor:c.hex});sw.toggleClass("is-current",c.hex.toLowerCase()===ss.color.toLowerCase());sw.addEventListener("click",()=>{this.host.setSelectionColor(c.hex);this.refresh();});} const hasHighlight=ss.tool==="highlighter"||ss.tool==="mixed"; this.selectionOpacityInput.parentElement?.toggleClass("is-hidden", !hasHighlight); if(hasHighlight){this.selectionOpacityInput.value=String(Math.round(ss.opacity*100));this.selectionOpacityVal.setText(`${Math.round(ss.opacity*100)}%`);} }
 		}
 		populate(this.penPanel, this.host.activeTool() === "pen");
 		populate(this.hlPanel, this.host.activeTool() === "highlighter");

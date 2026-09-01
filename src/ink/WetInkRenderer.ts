@@ -152,7 +152,10 @@ export class WetInkRenderer {
 				}
 				if (this.shapingThisStroke) this.prevSampleHw = sampleHw;
 			} else {
+				const priorAlpha = this.ctx.globalAlpha;
+				this.ctx.globalAlpha = priorAlpha * this.opacity;
 				drawSegment(this.ctx, cam, style, this.lastPoint, point);
+				this.ctx.globalAlpha = priorAlpha;
 			}
 			if (!this.drewOnce) {
 				this.drewOnce = true;

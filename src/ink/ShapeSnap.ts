@@ -566,8 +566,8 @@ function synthArrow(shaftBody: readonly P[], tip: P, shaftLen: number): InkPoint
  * The shaft length gate matches MIN_PATH_LENGTH; a short flutter on a short
  * stroke is too ambiguous to classify as an arrow.
  */
-const ARROW_TIP_RADIUS = 0.48;    // fraction of shaft length = "near the tip"
-const ARROW_FLUTTER_MIN = 0.02;  // min perp deviation fraction = arrowhead wing
+const ARROW_TIP_RADIUS = 0.62;    // fraction of shaft length = "near the tip"
+const ARROW_FLUTTER_MIN = 0.012;  // min perp deviation fraction = arrowhead wing
 // A purely relative flutter bar is fine for a long shaft but nearly free on a
 // short one: 3% of a 30-unit line is under 1px, so ordinary hand tremor at
 // the very end of an intentional short line - the kind of tiny wrist roll
@@ -575,7 +575,7 @@ const ARROW_FLUTTER_MIN = 0.02;  // min perp deviation fraction = arrowhead wing
 // every such line snapped to an arrow it was never meant to be (reported by
 // a user, 2026-09-01). A wing has to clear this many world units regardless
 // of how short the shaft is.
-const ARROW_FLUTTER_MIN_ABS = 4;
+const ARROW_FLUTTER_MIN_ABS = 2.5;
 // Wing evidence is the PEAK deviation on each side of the axis within the
 // tip zone, not a run of consecutive same-sign samples. A real arrowhead
 // drawn quickly flutters back and forth almost every sample (the pen
@@ -586,7 +586,7 @@ const ARROW_FLUTTER_MIN_ABS = 4;
 // the flutter bar on BOTH sides of the axis (not just one), which ordinary
 // jitter essentially never does, and the whole shaft still has to pass the
 // path-ratio scribble check below.
-const ARROW_MAX_PATH_RATIO = 2.8; // pathLength / shaftLen ceiling before it's "wandering", not an arrow
+const ARROW_MAX_PATH_RATIO = 3.8; // pathLength / shaftLen ceiling before it's "wandering", not an arrow
 const ARROW_TIP_HYSTERESIS = 2; // world units a candidate must clear the current tip by to replace it
 
 interface WingScan {
@@ -643,14 +643,20 @@ function scanForWings(body: readonly P[]): WingScan | null {
 	let shaftEndIdx = body.length - 1;
 	let maxPerp = -Infinity;
 	let minPerp = Infinity;
-	// The arrowhead is drawn after reaching the tip. Do not inspect the
-	// shaft before the farthest point: a bowed shaft can legitimately sit
-	// on one side of the tail→tip axis and must not become a fake wing.
-	for (let i = tipIndex + 1; i < body.length; i++) {
+	// Search the whole tip neighbourhood rather than relying on the exact
+	// sample index at which the user touched the tip. On real Apple Pencil
+	// strokes the farthest sample is often one of the first wing samples, or
+	// the user briefly overshoots the corner; starting strictly at tipIndex
+	// therefore made perfectly valid arrows disappear. Requiring BOTH sides
+	// of the axis still prevents a bowed shaft / single-wing attempt from
+	// becoming an arrow.
+	for (let i = 1; i < body.length; i++) {
 		const p = body[i]!;
 		if (dist(p, tip) > tipRadius) continue;
-		// First sample inside the arrowhead zone — shaft ends just before here.
-		if (shaftEndIdx === body.length - 1) shaftEndIdx = Math.max(0, i - 1);
+		// First post-tip sample inside the arrowhead zone — shaft ends just
+		// before the actual head. If the farthest sample itself is already a
+		// wing, tipIndex remains the natural shaft endpoint.
+		if (i > tipIndex && shaftEndIdx === body.length - 1) shaftEndIdx = Math.max(0, tipIndex);
 		const vx = p.x - tail.x;
 		const vy = p.y - tail.y;
 		const signedPerp = vx * uy - vy * ux;

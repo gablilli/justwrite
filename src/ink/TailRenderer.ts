@@ -34,6 +34,8 @@ export class TailRenderer {
 	private ctx: CanvasRenderingContext2D;
 	private dirty: { x0: number; y0: number; x1: number; y1: number } | null = null;
 	private readonly requested: boolean;
+	/** Alpha for the transient live head/prediction, matching the wet layer. */
+	opacity = 1;
 
 	/**
 	 * `desynchronized` asks the browser to present this canvas without waiting
@@ -203,6 +205,8 @@ export class TailRenderer {
 		const x2 = (to.x - cam.x) * cam.zoom;
 		const y2 = (to.y - cam.y) * cam.zoom;
 		const hw = widthForPressure(style, pressure) / 2;
+		const priorAlpha = this.ctx.globalAlpha;
+		this.ctx.globalAlpha = priorAlpha * this.opacity;
 		fillRibbon(
 			this.ctx,
 			cam,
@@ -212,6 +216,7 @@ export class TailRenderer {
 			],
 			renderColorForTheme(style.color, typeof document !== "undefined" && document.body.classList.contains("theme-dark"))
 		);
+		this.ctx.globalAlpha = priorAlpha;
 		this.growDirty(x1, y1, x2, y2, hw * cam.zoom + 2);
 	}
 
@@ -254,6 +259,8 @@ export class TailRenderer {
 	): void {
 		if (points.length === 0) return;
 		const ctx = this.ctx;
+		const priorAlpha = ctx.globalAlpha;
+		ctx.globalAlpha = priorAlpha * this.opacity;
 		ctx.strokeStyle = renderColorForTheme(color, typeof document !== "undefined" && document.body.classList.contains("theme-dark"));
 		ctx.lineCap = "round";
 		ctx.lineJoin = "round";
@@ -283,6 +290,7 @@ export class TailRenderer {
 			if (p.x > x1) x1 = p.x;
 			if (p.y > y1) y1 = p.y;
 		}
+		ctx.globalAlpha = priorAlpha;
 		this.growDirty(x0, y0, x1, y1, base / 2 + 2);
 	}
 }

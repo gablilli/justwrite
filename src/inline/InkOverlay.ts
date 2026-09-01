@@ -1887,7 +1887,9 @@ class InkOverlayPlugin {
 		// by ensurePenTools has not heard that yet, so tell it now.
 		this.mobileTools?.setInking(true);
 		this.activeWet = tool === "highlighter" ? this.highlightWet : this.wet;
-		this.highlightWet.opacity = tool === "highlighter" ? highlighterOpacity.value : 1;
+		const liveOpacity = tool === "highlighter" ? highlighterOpacity.value : 1;
+		this.highlightWet.opacity = liveOpacity;
+		this.tail.opacity = liveOpacity;
 		// The wet layer's shaping follows the device per stroke: a mouse
 		// stroke draws flat live, exactly as it will commit.
 		const fromMouse = ev.pointerType === "mouse";
@@ -1981,12 +1983,15 @@ class InkOverlayPlugin {
 				if (this.liveSnapPreview) {
 					const ghost = this.liveSnapPreview;
 					this.liveSnapPreview = null;
-					// The preview was painted directly into the committed cache. Damage
-					// its exact area before asking for the normal store-backed repaint;
-					// otherwise the old crooked/freehand geometry survives underneath.
+					// The preview temporarily covers the wet freehand stroke. Restore
+					// that layer and rebuild the committed raster completely: a partial
+					// damage pass could leave the old snapped pixels cached underneath
+					// when the camera/layer compositor has not invalidated the same tile.
+					this.wetCanvas.setCssStyles({ opacity: "1" });
+					this.highlightWetCanvas.setCssStyles({ opacity: "1" });
 					this.damage.addRect(padBBox(ghost.bbox, 6));
 					this.indexDirty = true;
-					this.scheduleRepaint("partial");
+					this.scheduleRepaint();
 				}
 			}
 			const w = this.camera.screenToWorld(s.x, s.y);
@@ -2343,7 +2348,9 @@ class InkOverlayPlugin {
 			if (region) {
 				this.damage.addRect(region);
 				this.indexDirty = true;
-				this.scheduleRepaint("partial");
+				this.wetCanvas.setCssStyles({ opacity: "1" });
+				this.highlightWetCanvas.setCssStyles({ opacity: "1" });
+				this.scheduleRepaint();
 			}
 		}
 		// Diagnostics (explicitly enabled only): paint ground truth part 2
@@ -2865,7 +2872,7 @@ class InkOverlayPlugin {
 			height: `${cursor.diameter}px`,
 			transform: `translate(${cursor.x}px, ${cursor.y}px)`,
 			backgroundColor: renderColorForTheme(getInkColorHex(tool), typeof document !== "undefined" && document.body.classList.contains("theme-dark")),
-			opacity: tool === "highlighter" ? String(HIGHLIGHTER_ALPHA) : "0.9",
+			opacity: tool === "highlighter" ? String(highlighterOpacity.value) : "0.9",
 		});
 	}
 
@@ -2934,10 +2941,14 @@ class InkOverlayPlugin {
 						const preview = snapPreview(pts, this.activeWet === this.highlightWet ? "highlighter" : "pen", style.color, style.baseWidth, this.activeWet === this.highlightWet ? highlighterOpacity.value : undefined);
 						if (preview) {
 							this.liveSnapPreview = preview;
-							// Draw the clean shape on the committed canvas immediately so
-							// the user sees the result while still holding the pen.
+							// The clean shape is painted on top of the committed raster.
+							// Hide the corresponding wet layer while the preview is live,
+							// otherwise the original crooked handwriting remains visible
+							under the snapped line.
 							const cam = this.camera.snapshot;
-							drawStroke(this.committedCtxFor("pen"), cam, preview, undefined, false);
+							drawStroke(this.committedCtxFor(preview.tool), cam, preview, undefined, false);
+							if (preview.tool === "highlighter") this.highlightWetCanvas.setCssStyles({ opacity: "0" });
+							else this.wetCanvas.setCssStyles({ opacity: "0" });
 						}
 					}
 				}
@@ -3079,8 +3090,17 @@ class InkOverlayPlugin {
 				const fixedY = this.resizeHandle.includes("n") ? sb.y+sb.height : this.resizeHandle.includes("s") ? sb.y : sb.y+sb.height/2;
 				let sx = this.resizeHandle.includes("w") || this.resizeHandle.includes("e") ? (this.resizeHandle.includes("w") ? (fixedX-w.x)/sb.width : (w.x-fixedX)/sb.width) : 1;
 				let sy = this.resizeHandle.includes("n") || this.resizeHandle.includes("s") ? (this.resizeHandle.includes("n") ? (fixedY-w.y)/sb.height : (w.y-fixedY)/sb.height) : 1;
-				if (sx < min/sb.width) sx = min/sb.width;
-				if (sy < min/sb.height) sy = min/sb.height;
+				if (this.resizeHandle.length === 2) {
+					// Corner resize is uniform: using independent X/Y scales is
+					// mathematically a non-uniform affine transform and changes the
+					// apparent angle of diagonal handwriting, which looked like a
+					// rotation to the user. Preserve the original aspect ratio.
+					const scale = Math.max(sx, sy, min / Math.min(sb.width, sb.height));
+					sx = scale; sy = scale;
+				} else {
+					if (sx < min/sb.width) sx = min/sb.width;
+					if (sy < min/sb.height) sy = min/sb.height;
+				}
 				const lastW=this.resizeLastBounds.width||1, lastH=this.resizeLastBounds.height||1;
 				const lastSX=(sx*sb.width)/lastW, lastSY=(sy*sb.height)/lastH;
 				inlineInk.scaleStrokes(path,this.selection.strokeIds,{x:fixedX,y:fixedY},lastSX,lastSY);
