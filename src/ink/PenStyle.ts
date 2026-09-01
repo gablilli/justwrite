@@ -58,6 +58,11 @@ export function clampHighlighterOpacity(value: number): number {
 	return Math.min(MAX_HIGHLIGHTER_ALPHA, Math.max(MIN_HIGHLIGHTER_ALPHA, Number.isFinite(value) ? value : HIGHLIGHTER_ALPHA));
 }
 
+/** Backwards-compatible generic ink opacity clamp used by tests and callers. */
+export function clampInkOpacity(value: number): number {
+	return clampHighlighterOpacity(value);
+}
+
 /** What a device that reports no pressure sends, normalized upstream. */
 export const NO_PRESSURE = 0.5;
 

@@ -148,8 +148,17 @@ export class TailRenderer {
 		const x=(box.x-cam.x)*cam.zoom-pad, y=(box.y-cam.y)*cam.zoom-pad, w=box.width*cam.zoom+pad*2, h=box.height*cam.zoom+pad*2;
 		ctx.strokeRect(x,y,w,h);
 		ctx.setLineDash([]);
-		for (const [hx,hy] of [[x,y],[x+w/2,y],[x+w,y],[x+w,y+h/2],[x+w,y+h],[x+w/2,y+h],[x,y+h],[x,y+h/2]]) {
-			ctx.beginPath(); ctx.arc(hx,hy,4,0,Math.PI*2); ctx.fillStyle="#fff"; ctx.fill(); ctx.strokeStyle=renderColorForTheme(color, typeof document!=="undefined"&&document.body.classList.contains("theme-dark")); ctx.stroke();
+		const handles: Array<[number, number]> = [
+			[x, y], [x + w / 2, y], [x + w, y], [x + w, y + h / 2],
+			[x + w, y + h], [x + w / 2, y + h], [x, y + h], [x, y + h / 2],
+		];
+		for (const [hx, hy] of handles) {
+			ctx.beginPath();
+			ctx.arc(hx, hy, 4, 0, Math.PI * 2);
+			ctx.fillStyle = "#fff";
+			ctx.fill();
+			ctx.strokeStyle = renderColorForTheme(color, typeof document !== "undefined" && document.body.classList.contains("theme-dark"));
+			ctx.stroke();
 		}
 		ctx.restore();
 		this.dirty = null;
