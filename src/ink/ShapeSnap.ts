@@ -572,6 +572,18 @@ function synthArrow(shaftBody: readonly P[], tip: P, shaftLen: number): InkPoint
  */
 const ARROW_TIP_RADIUS = 0.3;    // fraction of shaft length = "near the tip"
 const ARROW_FLUTTER_MIN = 0.03;  // min perp deviation fraction = arrowhead wing
+// A purely relative flutter bar is fine for a long shaft but nearly free on a
+// short one: 3% of a 30-unit line is under 1px, so ordinary hand tremor at
+// the very end of an intentional short line - the kind of tiny wrist roll
+// that happens right before the pen settles into the dwell - crossed it and
+// every such line snapped to an arrow it was never meant to be (reported by
+// a user, 2026-09-01). A wing has to clear this many world units regardless
+// of how short the shaft is.
+const ARROW_FLUTTER_MIN_ABS = 4;
+// A single noisy sample near the tip isn't a wing, it's jitter - a real
+// arrowhead's wing is ink drawn continuously off-axis, so require the
+// deviation to hold for a short run of consecutive samples before it counts.
+const ARROW_FLUTTER_MIN_RUN = 2;
 const ARROW_MAX_PATH_RATIO = 4.5; // pathLength / shaftLen ceiling before it's "wandering", not an arrow
 
 function classifyArrow(body: readonly P[]): SnapResult | null {
@@ -600,17 +612,24 @@ function classifyArrow(body: readonly P[]): SnapResult | null {
 	const ux = (tip.x - tail.x) / shaftLen;
 	const uy = (tip.y - tail.y) / shaftLen;
 	const tipRadius = shaftLen * ARROW_TIP_RADIUS;
+	const flutterThreshold = Math.max(shaftLen * ARROW_FLUTTER_MIN, ARROW_FLUTTER_MIN_ABS);
 	let sawWing = false;
 	let shaftEndIdx = body.length - 1;
+	let run = 0;
 	for (let i = 0; i < body.length; i++) {
 		const p = body[i]!;
-		if (dist(p, tip) > tipRadius) continue;
+		if (dist(p, tip) > tipRadius) { run = 0; continue; }
 		// First sample inside the arrowhead zone — shaft ends just before here.
 		if (shaftEndIdx === body.length - 1) shaftEndIdx = Math.max(0, i - 1);
 		const vx = p.x - tail.x;
 		const vy = p.y - tail.y;
 		const perp = Math.abs(vx * uy - vy * ux);
-		if (perp > shaftLen * ARROW_FLUTTER_MIN) { sawWing = true; break; }
+		if (perp > flutterThreshold) {
+			run++;
+			if (run >= ARROW_FLUTTER_MIN_RUN) { sawWing = true; break; }
+		} else {
+			run = 0;
+		}
 	}
 	if (!sawWing) return null;
 
