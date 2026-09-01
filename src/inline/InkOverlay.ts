@@ -2944,7 +2944,7 @@ class InkOverlayPlugin {
 							// The clean shape is painted on top of the committed raster.
 							// Hide the corresponding wet layer while the preview is live,
 							// otherwise the original crooked handwriting remains visible
-							under the snapped line.
+							// under the snapped line.
 							const cam = this.camera.snapshot;
 							drawStroke(this.committedCtxFor(preview.tool), cam, preview, undefined, false);
 							if (preview.tool === "highlighter") this.highlightWetCanvas.setCssStyles({ opacity: "0" });
