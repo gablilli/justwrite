@@ -1564,6 +1564,11 @@ export class HandwritingPageView extends TextFileView {
 		});
 	}
 
+	/** Repaint existing ink when Obsidian changes light/dark theme. */
+	refreshTheme(): void {
+		this.redrawCommitted();
+	}
+
 	private redrawCommitted(): void {
 		if (!this.committedCtx) return;
 		const cam = this.camera.snapshot;

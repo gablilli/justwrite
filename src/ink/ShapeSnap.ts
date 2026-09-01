@@ -582,6 +582,9 @@ const ARROW_FLUTTER_MIN_ABS = 4;
 // deviation to hold for a short run of consecutive samples before it counts.
 const ARROW_FLUTTER_MIN_RUN = 3;
 const ARROW_MAX_PATH_RATIO = 2.8; // pathLength / shaftLen ceiling before it's "wandering", not an arrow
+// Alternating flutter can put successive wing samples on opposite sides.
+// Repeated evidence on both sides is stronger than requiring a consecutive run.
+const ARROW_MIN_WING_SAMPLES = 2;
 
 function classifyArrow(body: readonly P[]): SnapResult | null {
 	if (body.length < 12) return null;
@@ -611,38 +614,28 @@ function classifyArrow(body: readonly P[]): SnapResult | null {
 	const tipRadius = shaftLen * ARROW_TIP_RADIUS;
 	const flutterThreshold = Math.max(shaftLen * ARROW_FLUTTER_MIN, ARROW_FLUTTER_MIN_ABS);
 	let shaftEndIdx = body.length - 1;
-	let positiveRun = 0;
-	let negativeRun = 0;
+	let positiveSamples = 0;
+	let negativeSamples = 0;
 	let positiveWing = false;
 	let negativeWing = false;
 	for (let i = 0; i < body.length; i++) {
 		const p = body[i]!;
-		if (dist(p, tip) > tipRadius) {
-			positiveRun = 0;
-			negativeRun = 0;
-			continue;
-		}
+		if (dist(p, tip) > tipRadius) continue;
 		// First sample inside the arrowhead zone — shaft ends just before here.
 		if (shaftEndIdx === body.length - 1) shaftEndIdx = Math.max(0, i - 1);
 		const vx = p.x - tail.x;
 		const vy = p.y - tail.y;
 		const signedPerp = vx * uy - vy * ux;
 		if (signedPerp > flutterThreshold) {
-			positiveRun++;
-			negativeRun = 0;
-			if (positiveRun >= ARROW_FLUTTER_MIN_RUN) positiveWing = true;
+			positiveSamples++;
+			if (positiveSamples >= ARROW_MIN_WING_SAMPLES) positiveWing = true;
 		} else if (signedPerp < -flutterThreshold) {
-			negativeRun++;
-			positiveRun = 0;
-			if (negativeRun >= ARROW_FLUTTER_MIN_RUN) negativeWing = true;
-		} else {
-			positiveRun = 0;
-			negativeRun = 0;
+			negativeSamples++;
+			if (negativeSamples >= ARROW_MIN_WING_SAMPLES) negativeWing = true;
 		}
 	}
-	// A real arrowhead has two sides. Requiring one wing on each side makes
-	// ordinary scribbles and end-of-line wrist jitter overwhelmingly less
-	// likely to be rewritten as an arrow.
+	// A real arrowhead has two sides. Requiring repeated evidence on both
+	// sides rejects a one-wing sweep while accepting alternating flutter.
 	if (!positiveWing || !negativeWing) return null;
 
 	// Shaft body: drawn points from tail up to the arrowhead zone.

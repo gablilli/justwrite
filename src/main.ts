@@ -289,6 +289,19 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 		};
 		await this.loadSettings();
 
+		// Canvas pixels do not inherit Obsidian's theme like DOM text does.
+		// Repaint committed ink after a theme switch so near-black custom ink
+		// can become white for contrast without changing the persisted color.
+		const themeObserver = new MutationObserver(() => {
+			this.app.workspace.iterateAllLeaves((leaf) => {
+				const view = leaf.view;
+				if (view instanceof HandwritingPageView) view.refreshTheme();
+			});
+			repaintAllInkOverlays();
+		});
+		themeObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+		this.register(() => themeObserver.disconnect());
+
 		this.registerView(HANDWRITING_PAGE_VIEW_TYPE, (leaf) => new HandwritingPageView(leaf, this));
 		this.registerView(HANDWRITING_PEN_LAB_VIEW_TYPE, (leaf) => new PenLabView(leaf));
 		this.registerView(

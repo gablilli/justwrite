@@ -5,6 +5,7 @@ import { flattenStroke } from "./Ribbon";
 import { flattenStrokeShaped, inkShapingEnabled } from "./InkShape";
 import { fillRibbon } from "./RibbonRenderer";
 import { InkPoint, InkStroke } from "./Stroke";
+import { displayInkColor } from "./InkColor";
 
 /**
  * Segment-based variable-width polyline rendering, shared by the wet layer
@@ -14,7 +15,8 @@ import { InkPoint, InkStroke } from "./Stroke";
  */
 
 function strokeStyleFor(stroke: { color: string }): string {
-	return stroke.color;
+	const darkTheme = typeof document !== "undefined" && document.body.classList.contains("theme-dark");
+	return displayInkColor(stroke.color, darkTheme);
 }
 
 /**
@@ -35,7 +37,7 @@ export function drawSegment(
 	const y2 = (to.y - cam.y) * cam.zoom;
 	// Average the two samples' pressures for the segment width.
 	const wWorld = widthForPressure(style, (from.pressure + to.pressure) / 2);
-	ctx.strokeStyle = style.color;
+	ctx.strokeStyle = strokeStyleFor(style);
 	ctx.lineWidth = Math.max(0.5, wWorld * cam.zoom);
 	ctx.lineCap = "round";
 	ctx.lineJoin = "round";
@@ -61,7 +63,7 @@ export function drawSmoothSegment(
 	const cy = (seg.ctrl.y - cam.y) * cam.zoom;
 	const ex = (seg.to.x - cam.x) * cam.zoom;
 	const ey = (seg.to.y - cam.y) * cam.zoom;
-	ctx.strokeStyle = style.color;
+	ctx.strokeStyle = strokeStyleFor(style);
 	ctx.lineWidth = Math.max(0.5, widthForPressure(style, seg.pressure) * cam.zoom);
 	ctx.lineCap = "round";
 	ctx.lineJoin = "round";
