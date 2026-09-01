@@ -1,6 +1,6 @@
 {
 	"name": "justwrite",
-	"version": "1.5.1",
+	"version": "1.5.3-beta",
 	"description": "Pen ink on ordinary Markdown notes in Obsidian",
 	"main": "main.js",
 	"private": true,
