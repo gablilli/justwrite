@@ -582,14 +582,33 @@ const ARROW_FLUTTER_MIN_ABS = 4;
 // deviation to hold for a short run of consecutive samples before it counts.
 const ARROW_FLUTTER_MIN_RUN = 3;
 const ARROW_MAX_PATH_RATIO = 2.8; // pathLength / shaftLen ceiling before it's "wandering", not an arrow
-// Alternating flutter can put successive wing samples on opposite sides.
-// Repeated evidence on both sides is stronger than requiring a consecutive run.
-const ARROW_MIN_WING_SAMPLES = 2;
+// Alternating flutter can put successive wing samples on opposite sides, so
+// even a single threshold-crossing sample on a side is real evidence of an
+// intentional stroke that direction (jitter alone essentially never clears
+// ARROW_FLUTTER_MIN_ABS). What actually separates a two-sided arrowhead from
+// a one-sided hook is whether the OTHER side ever crosses the threshold at
+// all - see the positiveWing/negativeWing check below.
+const ARROW_MIN_WING_SAMPLES = 1;
 
-function classifyArrow(body: readonly P[]): SnapResult | null {
+interface WingScan {
+	tail: P;
+	tip: P;
+	shaftLen: number;
+	shaftEndIdx: number;
+	positiveWing: boolean;
+	negativeWing: boolean;
+}
+
+/**
+ * Shared groundwork for arrow recognition: find the tail/tip and scan the
+ * ink near the tip for off-axis "wings". Used both to build a real arrow
+ * (both sides present) and to detect a one-sided wing attempt so the line
+ * fallback in classifyOpen doesn't quietly accept it as a plain line.
+ */
+function scanForWings(body: readonly P[]): WingScan | null {
 	if (body.length < 12) return null;
 
-	// 1. Tail = where the stroke started. Tip = farthest point from it.
+	// Tail = where the stroke started. Tip = farthest point from it.
 	const tail = body[0]!;
 	let tip = tail;
 	let shaftLen = 0;
@@ -599,16 +618,9 @@ function classifyArrow(body: readonly P[]): SnapResult | null {
 	}
 	if (shaftLen < MIN_PATH_LENGTH) return null;
 
-	// 2. Reject genuine scribbles: a shaft (bowed or not) plus an
-	//    arrowhead retraces only a little ground relative to how far it
-	//    ultimately got from the tail.
-	let traced = 0;
-	for (let i = 1; i < body.length; i++) traced += dist(body[i - 1]!, body[i]!);
-	if (traced > shaftLen * ARROW_MAX_PATH_RATIO) return null;
-
-	// 3. Ink near the tip that strays off the tail→tip axis is a wing.
-	//    Track the first index that enters the arrowhead zone so we can
-	//    split the shaft from the head geometry for synthesis.
+	// Ink near the tip that strays off the tail→tip axis is a wing.
+	// Track the first index that enters the arrowhead zone so callers can
+	// split the shaft from the head geometry for synthesis.
 	const ux = (tip.x - tail.x) / shaftLen;
 	const uy = (tip.y - tail.y) / shaftLen;
 	const tipRadius = shaftLen * ARROW_TIP_RADIUS;
@@ -634,6 +646,21 @@ function classifyArrow(body: readonly P[]): SnapResult | null {
 			if (negativeSamples >= ARROW_MIN_WING_SAMPLES) negativeWing = true;
 		}
 	}
+	return { tail, tip, shaftLen, shaftEndIdx, positiveWing, negativeWing };
+}
+
+function classifyArrow(body: readonly P[]): SnapResult | null {
+	const scan = scanForWings(body);
+	if (!scan) return null;
+	const { tail, tip, shaftLen, shaftEndIdx, positiveWing, negativeWing } = scan;
+
+	// Reject genuine scribbles: a shaft (bowed or not) plus an arrowhead
+	// retraces only a little ground relative to how far it ultimately got
+	// from the tail.
+	let traced = 0;
+	for (let i = 1; i < body.length; i++) traced += dist(body[i - 1]!, body[i]!);
+	if (traced > shaftLen * ARROW_MAX_PATH_RATIO) return null;
+
 	// A real arrowhead has two sides. Requiring repeated evidence on both
 	// sides rejects a one-wing sweep while accepting alternating flutter.
 	if (!positiveWing || !negativeWing) return null;
@@ -649,6 +676,16 @@ function classifyOpen(body: readonly P[]): SnapResult | null {
 	// shape. Arrow recognition short-circuits before line.
 	const arrow = classifyArrow(body);
 	if (arrow) return arrow;
+
+	// A stroke with a wing on only one side near the tip was clearly an
+	// attempted arrowhead, not a plain line - even though the endpoint drift
+	// it causes can otherwise slip under the line-straightness tolerance
+	// below. Don't let a failed arrow attempt get relabeled as a line;
+	// leave it freehand instead.
+	const scan = scanForWings(body);
+	if (scan && (scan.positiveWing || scan.negativeWing) && !(scan.positiveWing && scan.negativeWing)) {
+		return null;
+	}
 
 	const a = body[0]!;
 	const b = body[body.length - 1]!;
