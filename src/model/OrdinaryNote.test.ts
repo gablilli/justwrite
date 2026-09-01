@@ -164,7 +164,7 @@ describe("editing an ordinary note on the canvas", () => {
 		const doc = open(ORDINARY);
 		doc.addBox({ id: "tb-2", x: 400, y: 0, width: WIDTH, z: 1 }, "aside");
 		const out = doc.compose();
-		expect(out).toContain("<!-- handwriting:textbox id=justwrite-body -->");
+		expect(out).toContain("<!-- handwriting:textbox id=handwriting-body -->");
 		expect(out).toContain("<!-- handwriting:textbox id=tb-2 -->");
 		// Materialising adds structure; it never loses a word.
 		expect(out).toContain("# Lecture notes");

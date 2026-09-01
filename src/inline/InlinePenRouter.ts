@@ -560,15 +560,22 @@ export class InlinePenRouter {
 
 		// iPad Scribble suppression. `inputmode="none"` is the standard hint
 		// that tells the system this surface is not a text field, so iOS does
-		// not offer the Scribble justwrite-to-text layer when the Pencil
+		// not offer the Scribble handwriting-to-text layer when the Pencil
 		// approaches. Without it, Scribble intercepts Pencil strokes before
 		// they reach our pointer-event handlers and converts them to typed
 		// text into CodeMirror, competing directly with ink drawing.
 		//
 		// The attribute is removed on dispose so other views that reuse the
 		// same DOM element (e.g. after a plugin reload) are not affected.
-		scrollEl.setAttribute("inputmode", "none");
-		this.disposers.push(() => scrollEl.removeAttribute("inputmode"));
+		// Guard: test harness mocks may not implement the full Element API.
+		if (typeof scrollEl.setAttribute === "function") {
+			scrollEl.setAttribute("inputmode", "none");
+			this.disposers.push(() => {
+				if (typeof scrollEl.removeAttribute === "function") {
+					scrollEl.removeAttribute("inputmode");
+				}
+			});
+		}
 
 		// Everything is CAPTURE phase: the scroller is the content element's
 		// parent, so these run before any CodeMirror handler regardless of
