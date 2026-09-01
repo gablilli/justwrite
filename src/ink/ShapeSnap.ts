@@ -691,11 +691,6 @@ function classifyOpen(body: readonly P[]): SnapResult | null {
 			points: synthArrow(shaftBody.length > 1 ? shaftBody : [scan.tail], scan.tip, scan.shaftLen),
 		};
 	}
-	// Exactly one wing is a partial, ambiguous arrowhead attempt - not
-	// confidently a line either, so the stroke stays freehand rather than
-	// guessing wrong in either direction.
-	if (scan && (scan.positiveWing || scan.negativeWing)) return null;
-
 	const a = body[0]!;
 	const b = body[body.length - 1]!;
 	const len = dist(a, b);
@@ -706,6 +701,17 @@ function classifyOpen(body: readonly P[]): SnapResult | null {
 		if (d > worst) worst = d;
 	}
 	if (worst > len * LINE_TOLERANCE) return null;
+
+	// A single wing is ambiguous only when it is genuinely visible as a
+	// separate hook. Tiny end jitter on an otherwise straight line must not
+	// suppress the line snap: this is especially common with Apple Pencil
+	// input, where the final samples can move a few pixels while the user
+	// dwells. Use a tighter line-fit test for the one-wing case. A clean
+	// line remains a line; a clearly hooked one-wing arrow stays freehand.
+	if (scan && (scan.positiveWing || scan.negativeWing)) {
+		const ONE_WING_LINE_TOLERANCE = 0.045;
+		if (worst > len * ONE_WING_LINE_TOLERANCE) return null;
+	}
 	return { kind: "line", points: synthSegment(a, b) };
 }
 
