@@ -165,19 +165,50 @@ export function ribbonSides(pts: readonly RibbonPt[]): RibbonSides {
 	const right: Point2[] = [];
 	const n = pts.length;
 	for (let i = 0; i < n; i++) {
-		const prev = pts[Math.max(0, i - 1)]!;
-		const next = pts[Math.min(n - 1, i + 1)]!;
 		const cur = pts[i]!;
-		let tx = next.x - prev.x;
-		let ty = next.y - prev.y;
+		// Use a pure forward difference at the first point and a pure backward
+		// difference at the last, rather than the clamped central difference.
+		// The clamped form at i=0 sets prev=pts[0] so tx = pts[1].x - pts[0].x,
+		// which is the forward difference — mathematically identical — but at
+		// i=n-1 it sets next=pts[n-1] so tx = pts[n-1].x - pts[n-2].x, also
+		// the backward difference. Both are correct. The pathological case is a
+		// duplicate coordinate (stationary nib): the difference collapses to
+		// zero and the normal flips to the (1,0) fallback, which kinks the
+		// outline. Propagate the previous non-zero tangent instead so a
+		// stationary sample does not introduce a spike.
+		let tx: number, ty: number;
+		if (i === 0) {
+			// Forward difference from first to second point.
+			const p1 = pts[1] ?? cur;
+			tx = p1.x - cur.x;
+			ty = p1.y - cur.y;
+		} else if (i === n - 1) {
+			// Backward difference from second-to-last to last point.
+			const pm1 = pts[n - 2]!;
+			tx = cur.x - pm1.x;
+			ty = cur.y - pm1.y;
+		} else {
+			// Central difference.
+			tx = pts[i + 1]!.x - pts[i - 1]!.x;
+			ty = pts[i + 1]!.y - pts[i - 1]!.y;
+		}
 		const len = Math.hypot(tx, ty);
 		if (len < 1e-9) {
-			tx = 1;
-			ty = 0;
-		} else {
-			tx /= len;
-			ty /= len;
+			// Stationary sample: carry the previous tangent from the left array
+			// so a zero-length step does not kink the outline.
+			const prevL = left[left.length - 1];
+			const prevR = right[right.length - 1];
+			if (prevL && prevR) {
+				left.push({ x: cur.x + (cur.x - prevR.x), y: cur.y + (cur.y - prevR.y) });
+				right.push({ x: cur.x + (cur.x - prevL.x), y: cur.y + (cur.y - prevL.y) });
+			} else {
+				left.push({ x: cur.x, y: cur.y - cur.hw });
+				right.push({ x: cur.x, y: cur.y + cur.hw });
+			}
+			continue;
 		}
+		tx /= len;
+		ty /= len;
 		// Normal is the tangent rotated 90°.
 		const nx = -ty;
 		const ny = tx;
@@ -192,7 +223,7 @@ export function ribbonSides(pts: readonly RibbonPt[]): RibbonSides {
  * leave a notch on the outside of the bend. A disc at each of these fills the
  * wedge; anywhere else it would be redundant work.
  */
-export function jointIndices(pts: readonly RibbonPt[], minTurnDeg = 12): number[] {
+export function jointIndices(pts: readonly RibbonPt[], minTurnDeg = 6): number[] {
 	const out: number[] = [];
 	for (let i = 1; i < pts.length - 1; i++) {
 		const a = pts[i - 1]!;

@@ -146,7 +146,14 @@ export function applyEndTaper(
 	for (let i = 0; i < n; i++) {
 		const fromStart = taperEase(arc[i]! / taperLen, params.tipFloor);
 		const fromEnd = taperEase((total - arc[i]!) / taperLen, params.tipFloor);
-		pts[i]!.hw *= fromStart * fromEnd;
+		// Use min (narrowest wins) rather than the product: multiplying two
+		// taper ramps together squares the attenuation and produces a needle
+		// spike instead of a smooth nib tip. Each point is governed by
+		// whichever end it is closer to; the other end is at full width and
+		// contributes a factor of 1.0, so this is equivalent to the product
+		// only where both ramps are simultaneously active — i.e. very short
+		// strokes — and it avoids the exponent-doubling on normal strokes.
+		pts[i]!.hw *= Math.min(fromStart, fromEnd);
 	}
 }
 
@@ -207,10 +214,14 @@ export class IncrementalShaper {
 		this.vHat = 0;
 		this.prev = first;
 		this.arcFromStart = 0;
-		this.lastHw =
-			first && style
-				? (widthForPressure(style, first.pressure) / 2) * this.params.tipFloor
-				: 0;
+		// Start at the full pressure-derived half-width. The wet layer applies
+		// the start taper via the `taper` factor inside `push()` as arc length
+		// accumulates, so the very first segment already tapers naturally.
+		// Starting at tipFloor here produced a spike on stroke begin: the first
+		// ribbon point was much narrower than the second, creating a visible
+		// needle at the start that snapped to full width within a couple of
+		// samples (reported: arrow strokes look pointy at both ends, 2026-09-01).
+		this.lastHw = first && style ? widthForPressure(style, first.pressure) / 2 : 0;
 	}
 
 	/** Shaped half-width at this sample, start taper included. */
