@@ -142,12 +142,20 @@ export class WetInkRenderer {
 					const strip: RibbonPt[] = this.lastRibbon
 						? [this.lastRibbon, ...flatSeg]
 						: flatSeg;
-					fillRibbon(this.ctx, cam, strip, renderColorForTheme(style.color, typeof document !== "undefined" && document.body.classList.contains("theme-dark")));
+					const alpha = style.opacity ?? 1;
+					this.ctx.save();
+					this.ctx.globalAlpha *= Math.min(1, Math.max(0.05, alpha));
+					fillRibbon(this.ctx, cam, strip, renderColorForTheme(style.color, typeof document !== "undefined" && (document.body.classList.contains("theme-dark") || document.documentElement.classList.contains("theme-dark"))));
+					this.ctx.restore();
 					this.lastRibbon = strip[strip.length - 1];
 				}
 				if (this.shapingThisStroke) this.prevSampleHw = sampleHw;
 			} else {
+				const alpha = style.opacity ?? 1;
+				this.ctx.save();
+				this.ctx.globalAlpha *= Math.min(1, Math.max(0.05, alpha));
 				drawSegment(this.ctx, cam, style, this.lastPoint, point);
+				this.ctx.restore();
 			}
 			if (!this.drewOnce) {
 				this.drewOnce = true;
@@ -199,7 +207,11 @@ export class WetInkRenderer {
 		const strip: RibbonPt[] = this.lastRibbon
 			? [this.lastRibbon, ...flatSeg]
 			: flatSeg;
-		fillRibbon(this.ctx, cam, strip, renderColorForTheme(style.color, typeof document !== "undefined" && document.body.classList.contains("theme-dark")));
+		const alpha = style.opacity ?? 1;
+					this.ctx.save();
+					this.ctx.globalAlpha *= Math.min(1, Math.max(0.05, alpha));
+					fillRibbon(this.ctx, cam, strip, renderColorForTheme(style.color, typeof document !== "undefined" && (document.body.classList.contains("theme-dark") || document.documentElement.classList.contains("theme-dark"))));
+					this.ctx.restore();
 		this.lastRibbon = strip[strip.length - 1];
 	}
 

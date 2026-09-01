@@ -401,7 +401,8 @@
 	background: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 18px;
-	opacity: 0.92;
+	opacity: 1;
+	box-shadow: 0 8px 24px var(--background-modifier-box-shadow);
 }
 
 /* Desktop trims the chrome; mobile keeps 40px touch targets. */
@@ -473,7 +474,8 @@
 	background: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 16px;
-	opacity: 0.92;
+	opacity: 1;
+	box-shadow: 0 8px 24px var(--background-modifier-box-shadow);
 }
 
 .justwrite-slider-pop.is-showing {
@@ -620,6 +622,8 @@
  */
 .justwrite-tool-panel {
 	width: 172px;
+	background: var(--background-secondary);
+	opacity: 1;
 	align-items: stretch;
 }
 

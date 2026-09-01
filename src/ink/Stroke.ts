@@ -27,6 +27,8 @@ export interface InkStroke {
 	id: string;
 	tool: InkTool;
 	color: string;
+	/** Per-stroke opacity for highlighters (0..1); omitted = legacy default. */
+	opacity?: number;
 	/** Base width in world units at pressure ≈ mid. */
 	width: number;
 	points: InkPoint[];

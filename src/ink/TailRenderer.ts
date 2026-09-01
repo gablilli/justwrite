@@ -151,6 +151,23 @@ export class TailRenderer {
 			box.width * cam.zoom + pad * 2,
 			box.height * cam.zoom + pad * 2
 		);
+		// Eight small handles make the selection visibly resizable without
+		// stealing the lasso gesture itself. They are screen-sized so they stay
+		// usable at any zoom.
+		const hx = [box.x, box.x + box.width / 2, box.x + box.width];
+		const hy = [box.y, box.y + box.height / 2, box.y + box.height];
+		const handles: Array<[number, number]> = [
+			[hx[0]!, hy[0]!], [hx[1]!, hy[0]!], [hx[2]!, hy[0]!],
+			[hx[2]!, hy[1]!], [hx[2]!, hy[2]!], [hx[1]!, hy[2]!],
+			[hx[0]!, hy[2]!], [hx[0]!, hy[1]!],
+		];
+		ctx.setLineDash([]);
+		ctx.fillStyle = renderColorForTheme(color, typeof document !== "undefined" && (document.body.classList.contains("theme-dark") || document.documentElement.classList.contains("theme-dark")));
+		for (const [x, y] of handles) {
+			ctx.beginPath();
+			ctx.arc((x - cam.x) * cam.zoom, (y - cam.y) * cam.zoom, 4, 0, Math.PI * 2);
+			ctx.fill();
+		}
 		ctx.restore();
 		this.dirty = null;
 	}

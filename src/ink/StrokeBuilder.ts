@@ -28,7 +28,7 @@ export class StrokeBuilder {
 	/** Min world-space movement to accept a new sample (dedupe threshold). */
 	private minDist: number;
 
-	constructor(tool: InkTool, color: string, width: number, minDistWorld = 0.15, private device?: "mouse") {
+	constructor(tool: InkTool, color: string, width: number, minDistWorld = 0.15, private device?: "mouse", private opacity?: number) {
 		this.tool = tool;
 		this.color = color;
 		this.width = width;
@@ -114,6 +114,7 @@ export class StrokeBuilder {
 			id: newStrokeId(),
 			tool: this.tool,
 			color: this.color,
+			...(this.tool === "highlighter" && this.opacity !== undefined ? { opacity: this.opacity } : {}),
 			width: this.width,
 			points: finishedPoints,
 			bbox: computeBBox(finishedPoints, this.width * 2),

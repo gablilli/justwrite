@@ -64,7 +64,7 @@ import { getPenToolsMode, markPenSeen, penSeenThisSession, penToolsVisible } fro
 import { computeCanvasSize, countPaintedPixels } from "../diag/Raster";
 import { diagnosticsEnabled } from "../diag/DiagSwitch";
 import { splitStrokeByCircle, strokesHitByCircle } from "../ink/Eraser";
-import { DEFAULT_PEN, HIGHLIGHTER_ALPHA, HIGHLIGHTER_PEN, PenStyle } from "../ink/PenStyle";
+import { clampInkOpacity, DEFAULT_PEN, HIGHLIGHTER_ALPHA, HIGHLIGHTER_PEN, PenStyle } from "../ink/PenStyle";
 import { clampInkSize } from "../ink/InkSize";
 import { colorsFor, getInkColorHex, setInkColorHex as applyInkColorHex } from "../ink/InkColor";
 import { Point2 } from "../ink/Smoothing";
@@ -169,6 +169,7 @@ const SELECTION_COLOR = "#7f9cf5";
 const SELECTION_GRAB_PAD = 8;
 /** Minimum spacing between lasso vertices, in screen px. */
 const LASSO_MIN_STEP_PX = 2;
+const SELECTION_HANDLE_HIT_PX = 14;
 
 type PenMode = "ink" | "erase" | "lasso" | "space" | "pan";
 
@@ -200,6 +201,12 @@ const PRED_HISTORY = 12;
 // hot-path cost. Existing ink is never rewritten.
 
 const inkSizeMult: Record<InkTool, number> = { pen: 1, highlighter: 1 };
+let highlighterOpacity = HIGHLIGHTER_ALPHA;
+let persistHighlighterOpacity: ((value: number) => void) | null = null;
+
+export function getHighlighterOpacity(): number { return highlighterOpacity; }
+export function setHighlighterOpacity(value: number): void { highlighterOpacity = clampInkOpacity(value); }
+export function setPersistHighlighterOpacity(fn: ((value: number) => void) | null): void { persistHighlighterOpacity = fn; }
 
 export function getInkSizeMult(tool: InkTool): number {
 	return inkSizeMult[tool];
@@ -413,6 +420,8 @@ export function setPersistInkSize(fn: ((tool: InkTool, mult: number) => void) | 
 	persistInkSize = fn;
 }
 
+
+
 /** Same shape again, for the strip's hex field: model applies, plugin persists. */
 let persistInkColor: ((tool: InkTool, hex: string) => void) | null = null;
 
@@ -623,6 +632,10 @@ class InkOverlayPlugin {
 	private lassoActive = false;
 	private dragFrom: { x: number; y: number } | null = null;
 	private dragTotal: { dx: number; dy: number } | null = null;
+	private resizeHandle: number | null = null;
+	private resizeStartBounds: BBox | null = null;
+	private resizeStartStrokes: InkStroke[] = [];
+	private resizeStartIndices: number[] = [];
 	/** Insert-space gesture: divider world y, or null when no gesture. */
 	private spaceLineY: number | null = null;
 	/** Ids frozen at pen-down; the live drag and the op both use this list. */
@@ -1211,6 +1224,11 @@ class InkOverlayPlugin {
 			hasInkSelection: () => !this.selection.isEmpty,
 			palette: () => colorsFor(getInlineTool()),
 			inkSizeMult: (tool) => getInkSizeMult(tool as InkTool),
+			highlighterOpacity: () => getHighlighterOpacity(),
+			setHighlighterOpacity: (value, commit) => {
+				setHighlighterOpacity(value);
+				if (commit) persistHighlighterOpacity?.(getHighlighterOpacity());
+			},
 			setInkSizeMult: (tool, mult, commit) => {
 				setInkSizeMult(tool as InkTool, mult);
 				if (commit) persistInkSize?.(tool as InkTool, getInkSizeMult(tool as InkTool));
@@ -1860,6 +1878,7 @@ class InkOverlayPlugin {
 			(tool === "highlighter" ? HIGHLIGHTER_PEN.baseWidth : DEFAULT_PEN.baseWidth) *
 			getInkSizeMult(tool);
 		this.activeStyle.color = getInkColorHex(tool);
+		this.activeStyle.opacity = tool === "highlighter" ? highlighterOpacity : undefined;
 		markPenSeen();
 		this.ensurePenTools();
 		// The strip stepped aside at contact, above; a strip only just created
@@ -1893,7 +1912,8 @@ class InkOverlayPlugin {
 			this.activeStyle.color,
 			this.activeStyle.baseWidth,
 			undefined,
-			fromMouse ? "mouse" : undefined
+			fromMouse ? "mouse" : undefined,
+			tool === "highlighter" ? highlighterOpacity : undefined
 		);
 		this.builder.start(sample.timestamp);
 		const w = this.camera.screenToWorld(sample.x, sample.y);
@@ -2315,7 +2335,7 @@ class InkOverlayPlugin {
 			if (region) {
 				this.damage.addRect(region);
 				this.indexDirty = true;
-				this.scheduleRepaint("partial");
+				this.scheduleRepaint();
 			}
 		}
 		// Diagnostics (explicitly enabled only): paint ground truth part 2
@@ -2903,7 +2923,7 @@ class InkOverlayPlugin {
 					const pts = this.builder.currentPoints;
 					if (pts.length >= 8) {
 						const style = this.activeStyle;
-						const preview = snapPreview(pts, "pen", style.color, style.baseWidth);
+						const preview = snapPreview(pts, inlineTool, style.color, style.baseWidth, style.opacity);
 						if (preview) {
 							this.liveSnapPreview = preview;
 							// Draw the clean shape on the committed canvas immediately so
@@ -2998,9 +3018,57 @@ class InkOverlayPlugin {
 		return this.selection.bounds(this.strokesHere(), () => null, () => null);
 	}
 
+	private selectionHandleAt(p: Point2, b: BBox): number | null {
+		const pts = [
+			{ x: b.x, y: b.y }, { x: b.x + b.width / 2, y: b.y }, { x: b.x + b.width, y: b.y },
+			{ x: b.x + b.width, y: b.y + b.height / 2 }, { x: b.x + b.width, y: b.y + b.height },
+			{ x: b.x + b.width / 2, y: b.y + b.height }, { x: b.x, y: b.y + b.height }, { x: b.x, y: b.y + b.height / 2 },
+		];
+		const hit = visualToNote(SELECTION_HANDLE_HIT_PX, this.scale);
+		let best: number | null = null, dBest = Infinity;
+		pts.forEach((q, i) => { const d = Math.hypot(p.x - q.x, p.y - q.y); if (d <= hit && d < dBest) { best = i; dBest = d; } });
+		return best;
+	}
+
+	private resizeHandlePoint(b: BBox, i: number): Point2 {
+		const x = i === 0 || i === 6 || i === 7 ? b.x : i === 2 || i === 3 || i === 4 ? b.x + b.width : b.x + b.width / 2;
+		const y = i === 0 || i === 1 || i === 2 ? b.y : i === 4 || i === 5 || i === 6 ? b.y + b.height : b.y + b.height / 2;
+		return { x, y };
+	}
+
+	private resizeOppositeCorner(b: BBox, i: number): Point2 {
+		const x = i === 0 || i === 7 || i === 6 ? b.x + b.width : b.x;
+		const y = i === 0 || i === 1 || i === 2 ? b.y + b.height : b.y;
+		return { x, y };
+	}
+
+	private scaleBBox(b: BBox, anchor: Point2, sx: number, sy: number): BBox {
+		const x0 = anchor.x + (b.x - anchor.x) * sx;
+		const x1 = anchor.x + (b.x + b.width - anchor.x) * sx;
+		const y0 = anchor.y + (b.y - anchor.y) * sy;
+		const y1 = anchor.y + (b.y + b.height - anchor.y) * sy;
+		return { x: Math.min(x0, x1), y: Math.min(y0, y1), width: Math.abs(x1 - x0), height: Math.abs(y1 - y0) };
+	}
+
 	private lassoDown(sample: PenSample): void {
 		const w = this.camera.screenToWorld(sample.x, sample.y);
 		const bounds = this.selectionBounds();
+		// Handles take precedence over the normal selection grab. A handle drag
+		// scales the selected ink around the opposite corner; the operation is
+		// committed as one replace-history step at release.
+		if (bounds) {
+			const handle = this.selectionHandleAt(w, bounds);
+			if (handle !== null && this.selection.strokeIds.length > 0) {
+				this.resizeHandle = handle;
+				this.resizeStartBounds = { ...bounds };
+				const all = this.strokesHere();
+				this.resizeStartStrokes = all.filter((st) => this.selection.hasStroke(st.id)).map((st) => ({ ...st, points: st.points.map((pt) => ({ ...pt })) , bbox: { ...st.bbox } }));
+				this.resizeStartIndices = all.map((st, i) => this.selection.hasStroke(st.id) ? i : -1).filter((i) => i >= 0);
+				this.dragFrom = { x: w.x, y: w.y };
+				this.dragTotal = { dx: 0, dy: 0 };
+				return;
+			}
+		}
 		// Landing inside an existing selection moves it; anywhere else lassos.
 		if (
 			bounds &&
@@ -3020,6 +3088,34 @@ class InkOverlayPlugin {
 		const last = samples[samples.length - 1];
 		if (!last) return;
 
+		if (this.resizeHandle !== null && this.resizeStartBounds && this.dragFrom) {
+			const path = this.filePath();
+			if (!path) return;
+			const b0 = this.resizeStartBounds;
+			const w = this.camera.screenToWorld(last.x, last.y);
+			const opposite = this.resizeOppositeCorner(b0, this.resizeHandle);
+			const anchor = opposite;
+			const startCorner = this.resizeHandlePoint(b0, this.resizeHandle);
+			const sx0 = startCorner.x - anchor.x;
+			const sy0 = startCorner.y - anchor.y;
+			const sx = Math.abs(sx0) < 1 ? 1 : (w.x - anchor.x) / sx0;
+			const sy = Math.abs(sy0) < 1 ? 1 : (w.y - anchor.y) / sy0;
+			const uniform = [0, 2, 4, 6].includes(this.resizeHandle);
+			const scaleX = uniform ? Math.sign(sx0 || 1) * Math.max(0.08, Math.abs(sx)) : Math.max(0.08, Math.abs(sx));
+			const scaleY = uniform ? Math.sign(sy0 || 1) * Math.max(0.08, Math.abs(sy)) : Math.max(0.08, Math.abs(sy));
+			const current = this.strokesHere();
+			for (const start of this.resizeStartStrokes) {
+				const live = current.find((st) => st.id === start.id);
+				if (!live) continue;
+				live.points = start.points.map((pt) => ({ ...pt, x: anchor.x + (pt.x - anchor.x) * scaleX, y: anchor.y + (pt.y - anchor.y) * scaleY }));
+				live.bbox = this.scaleBBox(start.bbox, anchor, scaleX, scaleY);
+			}
+			this.indexDirty = true;
+			this.scheduleRepaint();
+			this.repaintPath(path);
+			this.redrawSelectionUI();
+			return;
+		}
 		if (this.dragFrom && this.dragTotal) {
 			const path = this.filePath();
 			if (!path) return;
@@ -3072,6 +3168,23 @@ class InkOverlayPlugin {
 	}
 
 	private lassoUp(): void {
+		if (this.resizeHandle !== null) {
+			const path = this.filePath();
+			const after = path ? this.strokesHere().filter((st) => this.resizeStartStrokes.some((before: InkStroke) => before.id === st.id)).map((st) => ({ ...st, points: st.points.map((pt) => ({ ...pt })), bbox: { ...st.bbox } })) : [];
+			if (path && after.length > 0) {
+				inlineInk.save(path);
+				this.dispatchInk({ type: "replace", path, removed: this.resizeStartStrokes, removedAt: this.resizeStartIndices, inserted: after, insertedAt: this.resizeStartIndices });
+			}
+			this.resizeHandle = null;
+			this.resizeStartBounds = null;
+			this.resizeStartStrokes = [];
+			this.resizeStartIndices = [];
+			this.dragFrom = null;
+			this.dragTotal = null;
+			this.scheduleRepaint();
+			this.redrawSelectionUI();
+			return;
+		}
 		if (this.dragTotal) {
 			const { dx, dy } = this.dragTotal;
 			this.dragFrom = null;
@@ -3319,6 +3432,10 @@ class InkOverlayPlugin {
 		this.lassoActive = false;
 		this.dragFrom = null;
 		this.dragTotal = null;
+		this.resizeHandle = null;
+		this.resizeStartBounds = null;
+		this.resizeStartStrokes = [];
+		this.resizeStartIndices = [];
 		this.spaceLineY = null;
 		this.spaceIds = [];
 		this.spaceBounds = null;

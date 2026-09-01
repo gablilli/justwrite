@@ -97,6 +97,18 @@ describe("dwellStart", () => {
 	});
 });
 
+describe("snap opacity", () => {
+	it("keeps highlighter opacity when a stroke is straightened", () => {
+		const pts = withDwell(Array.from({ length: 30 }, (_, i) => ({
+			x: i * 5, y: Math.sin(i) * 0.8, pressure: 0.4, t: i * 10,
+		})));
+		const raw = { ...strokeOf(pts), tool: "highlighter" as const, opacity: 0.22 };
+		const snapped = snapStroke(raw);
+		expect(snapped).not.toBe(null);
+		expect(snapped!.opacity).toBe(0.22);
+	});
+});
+
 describe("snapStroke", () => {
 	it("no dwell means no snap, whatever the figure", () => {
 		expect(snapStroke(strokeOf(noisyCircle(100, 100, 40)))).toBe(null);

@@ -32,7 +32,7 @@ export function renderColorForTheme(color: string, darkTheme: boolean): string {
 }
 
 function isDarkTheme(): boolean {
-	return typeof document !== "undefined" && document.body.classList.contains("theme-dark");
+	return typeof document !== "undefined" && (document.body.classList.contains("theme-dark") || document.documentElement.classList.contains("theme-dark"));
 }
 
 function strokeStyleFor(stroke: { color: string }): string {
@@ -108,6 +108,7 @@ export function drawStroke(
 	const flat = stroke.tool === "highlighter";
 	const style: PenStyle = {
 		color: renderColorForTheme(stroke.color, isDarkTheme()),
+		opacity: flat ? (stroke.opacity ?? HIGHLIGHTER_ALPHA) : undefined,
 		baseWidth: stroke.width,
 		minWidthFactor: styleOverride?.minWidthFactor ?? (flat ? 0.9 : PEN_MIN_WIDTH_FACTOR),
 		gamma: styleOverride?.gamma ?? (flat ? 1 : 0.75),
@@ -125,7 +126,7 @@ export function drawStroke(
 	// translucency at the canvas level, because that path strokes many
 	// overlapping segments per gesture and per-segment alpha would seam.
 	const priorAlpha = ctx.globalAlpha;
-	if (flat) ctx.globalAlpha = priorAlpha * HIGHLIGHTER_ALPHA;
+	if (flat) ctx.globalAlpha = priorAlpha * Math.min(1, Math.max(0.05, stroke.opacity ?? HIGHLIGHTER_ALPHA));
 	if (smooth) {
 		// One path, one fill, one antialiased edge. See Ribbon.ts for why
 		// per-segment stroking looks beaded when magnified. Pen strokes take

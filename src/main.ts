@@ -30,6 +30,7 @@ import {
 	setEraserRadiusPx,
 	setEraserWholeStrokes,
 	setInkSizeMult,
+	setHighlighterOpacity,
 	setInlineEraserMode,
 	setInlineLassoMode,
 	setInlinePanMode,
@@ -40,6 +41,7 @@ import {
 	setPersistEraserRadius,
 	setPersistInkColor,
 	setPersistInkSize,
+	setPersistHighlighterOpacity,
 	setShapeSnap,
 	setSmoothInk,
 	setToolbarCorner,
@@ -58,7 +60,7 @@ import { surfaceExtents } from "./inline/SurfaceExtent";
 import { claimMarkdown, reassignMarkdown } from "./inline/InlineClaim";
 import { INK_SIZE_STEPS, clampInkSize, nextInkSize } from "./ink/InkSize";
 import { DEFAULT_ERASER_RADIUS_PX, clampEraserRadius, nextEraserSize } from "./ink/EraserSize";
-import { setPressureSensitivity, pressureSensitivityEnabled } from "./ink/PenStyle";
+import { clampInkOpacity, setPressureSensitivity, pressureSensitivityEnabled } from "./ink/PenStyle";
 import {
 	HIGHLIGHTER_COLORS,
 	PEN_COLORS,
@@ -129,6 +131,8 @@ interface HandwritingSettings {
 	smoothInk: boolean;
 	/** Nib size multipliers per tool (v0.13.6): 0.6 fine · 1 medium · 1.8 bold. */
 	inkSizes: { pen: number; highlighter: number };
+	/** Highlighter opacity for new strokes. */
+	highlighterOpacity: number;
 	/**
 	 * Shaped ink rendering (v0.13.10): velocity thinning, filtered pressure
 	 * Off pins pressure to its no-pressure value, so width stops following how
@@ -184,6 +188,7 @@ const DEFAULT_SETTINGS: HandwritingSettings = {
 	cameras: {},
 	smoothInk: true,
 	inkSizes: { pen: 1, highlighter: 1 },
+	highlighterOpacity: 0.35,
 	pressureSensitivity: true,
 	inkColors: { pen: PEN_COLORS[0]!.hex, highlighter: HIGHLIGHTER_COLORS[0]!.hex },
 	pageOwners: {},
@@ -1333,6 +1338,13 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 		new Notice(`JustWrite: ${tool} ${name}`);
 	}
 
+	private async setHighlighterOpacity(value: number): Promise<void> {
+		const applied = clampInkOpacity(value);
+		setHighlighterOpacity(applied);
+		this.settings.highlighterOpacity = applied;
+		await this.saveData(this.settings);
+	}
+
 	private async setInkSize(mult: number, name: string): Promise<void> {
 		const tool = getInlineTool();
 		setInkSizeMult(tool, mult);
@@ -1743,6 +1755,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 				pen: clampInkSize(raw?.inkSizes?.pen ?? 1),
 				highlighter: clampInkSize(raw?.inkSizes?.highlighter ?? 1),
 			},
+			highlighterOpacity: clampInkOpacity(raw?.highlighterOpacity ?? 0.35),
 			inkColors: {
 				pen: normalizeInkColor("pen", raw?.inkColors?.pen),
 				highlighter: normalizeInkColor("highlighter", raw?.inkColors?.highlighter),
@@ -1789,6 +1802,10 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 			this.settings.inkSizes[tool] = clampInkSize(mult);
 			runDetached(this.saveData(this.settings), "save the ink size");
 		});
+		setPersistHighlighterOpacity((value) => {
+			this.settings.highlighterOpacity = clampInkOpacity(value);
+			runDetached(this.saveData(this.settings), "save the highlighter opacity");
+		});
 		setPersistInkColor((tool, hex) => {
 			this.settings.inkColors[tool] = hex;
 			runDetached(this.saveData(this.settings), "save the ink color");
@@ -1803,6 +1820,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 		this.app.workspace.onLayoutReady(() => this.refreshAllPaper());
 		setInkSizeMult("pen", this.settings.inkSizes.pen);
 		setInkSizeMult("highlighter", this.settings.inkSizes.highlighter);
+		setHighlighterOpacity(this.settings.highlighterOpacity);
 		setPressureSensitivity(this.settings.pressureSensitivity);
 		setInkColorHex("pen", this.settings.inkColors.pen);
 		setInkColorHex("highlighter", this.settings.inkColors.highlighter);
