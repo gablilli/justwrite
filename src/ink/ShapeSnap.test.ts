@@ -180,6 +180,56 @@ describe("snapStroke", () => {
 		}
 	});
 
+	it("a held five-pointed star becomes a regular star", () => {
+		// Ten corners, point-to-point without lifting the pen: outer tip,
+		// inner valley, outer tip, ... A noticeably uneven hand-drawn one
+		// (outer/inner radii vary a bit per point, like a real hand) still
+		// has to come out perfectly regular and centred.
+		const cx = 100, cy = 100, outerR = 60, innerR = 24, rot = 0.3;
+		const corners: { x: number; y: number }[] = [];
+		for (let k = 0; k < 10; k++) {
+			// Uneven by design: alternate the two radii slightly per tip.
+			const wobble = k % 4 === 0 ? 6 : k % 4 === 2 ? -6 : 0;
+			const r = (k % 2 === 0 ? outerR : innerR) + wobble;
+			const angle = rot + (k * Math.PI) / 5;
+			corners.push({ x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r });
+		}
+		corners.push(corners[0]!);
+		const pts: InkPoint[] = [];
+		let t = 0;
+		for (let c = 0; c < 10; c++) {
+			const a = corners[c]!;
+			const b = corners[c + 1]!;
+			for (let i = 0; i < 10; i++) {
+				const f = i / 10;
+				pts.push({
+					x: a.x + (b.x - a.x) * f + jitter(t, 1.5),
+					y: a.y + (b.y - a.y) * f + jitter(t + 3, 1.5),
+					pressure: 0.4,
+					t: t * 10,
+				});
+				t++;
+			}
+		}
+		const s = snapStroke(strokeOf(withDwell(pts)));
+		expect(s).not.toBe(null);
+		// The outline is a polygon (straight edges), so most sampled points
+		// sit between the two radii, not on them - only the actual corners
+		// do. Check the corners instead: the local radius maxima/minima
+		// along the synthesized outline.
+		const ring = s!.points.slice(0, -3);
+		const scx = ring.reduce((a, p) => a + p.x, 0) / ring.length;
+		const scy = ring.reduce((a, p) => a + p.y, 0) / ring.length;
+		const radii = ring.map((p) => Math.hypot(p.x - scx, p.y - scy));
+		const n = radii.length;
+		const maxima = radii.filter((r, i) => r >= radii[(i - 1 + n) % n]! && r >= radii[(i + 1) % n]!);
+		const minima = radii.filter((r, i) => r <= radii[(i - 1 + n) % n]! && r <= radii[(i + 1) % n]!);
+		expect(maxima.length).toBeGreaterThanOrEqual(5);
+		expect(minima.length).toBeGreaterThanOrEqual(5);
+		for (const m of maxima) expect(m).toBeGreaterThan(outerR - 3);
+		for (const m of minima) expect(m).toBeLessThan(innerR + 3);
+	});
+
 	it("held scribble stays itself (null: honesty over eagerness)", () => {
 		const pts: InkPoint[] = [];
 		for (let i = 0; i <= 80; i++) {
@@ -338,6 +388,93 @@ describe("arrow snap", () => {
 		for (const p of s!.points) {
 			expect(Math.abs(p.y)).toBeLessThan(3);
 		}
+	});
+
+	it("a crooked (bowed) shaft with a normal arrowhead still snaps to an arrow", () => {
+		// Shaft bows upward in the middle instead of running straight —
+		// the old two-most-distant-points + shaft-straightness test
+		// rejected this outright.
+		const n = 40;
+		const pts: InkPoint[] = [];
+		for (let i = 0; i < n; i++) {
+			const f = i / (n - 1);
+			const bow = Math.sin(f * Math.PI) * 18; // big bow, well past LINE_TOLERANCE
+			pts.push({ x: 200 * f + jitter(i, 1.2), y: -bow + jitter(i + 5, 1.2), pressure: 0.4, t: i * 10 });
+		}
+		const dx = 200, dy = 0;
+		const len = Math.hypot(dx, dy);
+		const nx = -dy / len, ny = dx / len;
+		for (let k = 0; k < 8; k++) {
+			const sign = k % 2 === 0 ? 1 : -1;
+			pts.push({
+				x: 200 + nx * sign * 8 * (1 - k / 8) + jitter(n + k, 0.5),
+				y: ny * sign * 8 * (1 - k / 8) + jitter(n + k + 3, 0.5),
+				pressure: 0.4,
+				t: (n + k) * 10,
+			});
+		}
+		const s = snapStroke(strokeOf(withDwell(pts)));
+		expect(s).not.toBe(null);
+		const xs = s!.points.map((p) => p.x);
+		const maxX = Math.max(...xs);
+		expect(xs.filter((x) => maxX - x > 5).length).toBeGreaterThan(0);
+	});
+
+	it("an arrowhead with only one wing (the other never drawn) still snaps to an arrow", () => {
+		const n = 40;
+		const pts: InkPoint[] = [];
+		for (let i = 0; i < n; i++) {
+			const f = i / (n - 1);
+			pts.push({ x: 200 * f + jitter(i, 1.2), y: jitter(i + 5, 1.2), pressure: 0.4, t: i * 10 });
+		}
+		// Only a single wing sweeping back from the tip — no second flick.
+		for (let k = 0; k < 6; k++) {
+			const f = k / 6;
+			pts.push({
+				x: 200 - 14 * f + jitter(n + k, 0.5),
+				y: 10 * f + jitter(n + k + 3, 0.5),
+				pressure: 0.4,
+				t: (n + k) * 10,
+			});
+		}
+		const s = snapStroke(strokeOf(withDwell(pts)));
+		expect(s).not.toBe(null);
+		const xs = s!.points.map((p) => p.x);
+		const maxX = Math.max(...xs);
+		expect(xs.filter((x) => maxX - x > 5).length).toBeGreaterThan(0);
+	});
+
+	it("a large, lopsided arrowhead doesn't hijack the shaft axis", () => {
+		// The arrowhead itself is nearly half the shaft length and heavily
+		// asymmetric — big enough that the old "two most-distant points"
+		// search could land on a wing tip instead of the true tip.
+		const n = 30;
+		const pts: InkPoint[] = [];
+		for (let i = 0; i < n; i++) {
+			const f = i / (n - 1);
+			pts.push({ x: 100 * f + jitter(i, 1), y: jitter(i + 5, 1), pressure: 0.4, t: i * 10 });
+		}
+		// One long, wide wing back-and-left from the tip.
+		for (let k = 0; k < 10; k++) {
+			const f = k / 10;
+			pts.push({ x: 100 - 45 * f, y: 40 * f, pressure: 0.4, t: (n + k) * 10 });
+		}
+		// Back out toward the tip, then a short second wing.
+		for (let k = 0; k < 6; k++) {
+			const f = k / 6;
+			pts.push({ x: 100 - 45 + 45 * f, y: 40 - 40 * f, pressure: 0.4, t: (n + 10 + k) * 10 });
+		}
+		for (let k = 0; k < 6; k++) {
+			const f = k / 6;
+			pts.push({ x: 100 - 12 * f, y: -10 * f, pressure: 0.4, t: (n + 16 + k) * 10 });
+		}
+		const s = snapStroke(strokeOf(withDwell(pts)));
+		expect(s).not.toBe(null);
+		// The synthesized tip must be near x=100 (the true tip), not out at
+		// x=55 (the far wing tip) or beyond.
+		const maxX = Math.max(...s!.points.map((p) => p.x));
+		expect(maxX).toBeGreaterThan(90);
+		expect(maxX).toBeLessThan(110);
 	});
 
 	it("snapPreview returns a shape mid-stroke (before pen-up)", () => {

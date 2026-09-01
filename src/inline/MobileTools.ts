@@ -489,7 +489,19 @@ export class MobileTools {
 						cls: "handwriting-color-swatch",
 						attr: { "aria-label": c.name, type: "button" },
 					});
-					sw.setCssStyles({ backgroundColor: c.hex });
+					// The visible circle lives on a nested, non-interactive
+					// span rather than on the button itself: a <button> is a
+					// form control and a direct CSS grid item, both of which
+					// iPadOS Safari has been seen to size wrong regardless of
+					// width/max-width/aspect-ratio pinned directly on it
+					// (hardware, 2026-08-31/09-01 - the squashed-oval report
+					// persisted through two rounds of constraining the button
+					// itself). A plain <span> one level deeper is neither of
+					// those things, so its fixed 22x22 circle cannot inherit
+					// either quirk - whatever size WebKit decides the button
+					// should be, the dot centered inside it stays exact.
+					const dot = sw.createSpan({ cls: "handwriting-color-swatch-dot" });
+					dot.setCssStyles({ backgroundColor: c.hex });
 					sw.toggleClass("is-current", c.hex.toLowerCase() === current.toLowerCase());
 					sw.addEventListener("pointerdown", (ev) => ev.preventDefault());
 					sw.addEventListener("click", (ev) => {

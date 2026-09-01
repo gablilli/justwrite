@@ -563,38 +563,45 @@
 	max-width: 22px;
 	max-height: 22px;
 	flex: none;
-	/* Grid items stretch to fill their cell by default; the container's
-	   justify-items/align-items: center should already stop that, but a
-	   plain <button> also carries the platform's native chrome (default
-	   padding, min-width) which on iPadOS Safari out-measured the 22px
-	   box and rendered every swatch as a squashed oval instead of a
-	   circle. Pinning min/max as well as width/height, resetting native
-	   appearance, and setting this item's own grid alignment makes the
-	   box exactly 22x22 regardless of ancestor or platform quirks. */
 	justify-self: center;
 	align-self: center;
 	box-sizing: border-box;
 	padding: 0;
 	margin: 0;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 50%;
+	/* No border/background/border-radius here on purpose (2026-09-01):
+	   this element is now just a hit target, sized generously enough for
+	   a fingertip but otherwise invisible. The visible circle is the
+	   nested .handwriting-color-swatch-dot span below - see the comment
+	   at its creation in MobileTools.ts for why the split exists. Even if
+	   iPadOS Safari still mis-sizes THIS box as a grid item / form
+	   control, nothing about its shape is drawn, so there is nothing left
+	   for that quirk to visibly distort. */
+	border: none;
+	background: none;
 	box-shadow: none;
 	cursor: pointer;
 	-webkit-appearance: none;
 	appearance: none;
-	background-clip: padding-box;
-	/* Belt-and-braces on top of the pinned width/height above: iPadOS
-	   Safari still out-measures a <button>'s intrinsic size inside a CSS
-	   grid cell in some builds and stretches it horizontally regardless of
-	   width/max-width (a known WebKit form-control-in-grid quirk), which
-	   is exactly the squashed-oval report (hardware, 2026-08-31).
-	   aspect-ratio ties height to whatever width WebKit ends up computing,
-	   so even if the box is stretched it stays a circle, never an oval. */
-	aspect-ratio: 1 / 1;
-	display: inline-block;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
-.handwriting-color-swatch.is-current {
+.handwriting-color-swatch-dot {
+	width: 22px;
+	height: 22px;
+	min-width: 22px;
+	min-height: 22px;
+	max-width: 22px;
+	max-height: 22px;
+	border-radius: 50%;
+	border: 1px solid var(--background-modifier-border);
+	box-sizing: border-box;
+	background-clip: padding-box;
+	pointer-events: none;
+}
+
+.handwriting-color-swatch.is-current .handwriting-color-swatch-dot {
 	box-shadow: 0 0 0 2px var(--background-secondary), 0 0 0 3.5px var(--interactive-accent);
 }
 

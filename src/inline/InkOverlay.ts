@@ -76,7 +76,7 @@ import { drawCommitted,
 import { TailRenderer } from "../ink/TailRenderer";
 import { WetInkRenderer } from "../ink/WetInkRenderer";
 import { PenSample } from "../input/PointerRouter";
-import { padBBox, pointInBBox } from "../objects/Selection";
+import { padBBox, pointInBBox, unionBounds } from "../objects/Selection";
 import { SelectionModel } from "../objects/SelectionModel";
 import { runDetached } from "../util/Detached";
 import { InkOp, inkApplied, inkEffect, inkHistorySupport, snapHistoryOps } from "./InkHistory";
@@ -2158,9 +2158,14 @@ class InkOverlayPlugin {
 		if (this.strokePenGesture) observeStrokeMax(this.strokeRawMax);
 		this.strokePenGesture = false;
 		let strokes = builder?.finishReleaseFiltered() ?? [];
+		// Kept for reconciliation below: whatever ends up actually committed,
+		// the union of this (the raw ink that was really drawn) and any live
+		// preview already baked onto the canvas must get correctly redrawn
+		// from the store afterward - see the reconcile block after handoff.
+		const rawStrokes = strokes;
 		// Hold the pen still at the end and the figure snaps to the clean
-		// shape it meant (line, triangle, rectangle, circle, ellipse, arrow).
-		// The dwell is the request; an ordinary lift never gets here.
+		// shape it meant (line, triangle, rectangle, circle, ellipse, arrow,
+		// star). The dwell is the request; an ordinary lift never gets here.
 		// If liveSnapPreview fired during the dwell, reuse its result: the
 		// recognition already ran and the shape is already painted, so we
 		// just need to commit it to storage. If not (e.g. pen-up came in very
@@ -2258,6 +2263,31 @@ class InkOverlayPlugin {
 				}
 			},
 		});
+		// If a live shape-snap preview was painted onto the committed
+		// canvas mid-gesture (see startFrameTicker), the direct draw above
+		// only repainted what actually ended up in `strokes`. Whenever the
+		// FINAL commit doesn't exactly match that preview - the shape
+		// recognized on release differs from the one recognized during the
+		// dwell, or `strokes.length !== 1` skipped snapping altogether and
+		// left the raw ink in place - the preview's pixels are stray ink
+		// nothing will ever clear (hardware, 2026-08-31: a snapped square
+		// with the original crooked stroke still visible underneath it).
+		// Damage the union of the preview and the raw ink that was really
+		// drawn and let the normal partial-repaint path reconcile it from
+		// the store, the same way any other edit's leftover region gets
+		// cleaned up - that also correctly redraws any other ink that
+		// happens to sit under the same rect, which a plain clearRect here
+		// would have erased.
+		if (pendingPreview) {
+			const region = unionBounds(
+				[pendingPreview.bbox, ...rawStrokes.map((s) => s.bbox)].map((b) => padBBox(b, 4))
+			);
+			if (region) {
+				this.damage.addRect(region);
+				this.indexDirty = true;
+				this.scheduleRepaint("partial");
+			}
+		}
 		// Diagnostics (explicitly enabled only): paint ground truth part 2
 		// (did the commit draw reach the committed backing store?), plus the
 		// frame-desync measure and the COMMIT trace row. Ordinary writing

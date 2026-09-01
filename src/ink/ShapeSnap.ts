@@ -33,7 +33,7 @@ const LINE_TOLERANCE = 0.08;
 /** Synthesized point spacing in world units. */
 const SYNTH_STEP = 3;
 
-export type SnappedKind = "line" | "triangle" | "rectangle" | "circle" | "ellipse" | "arrow";
+export type SnappedKind = "line" | "triangle" | "rectangle" | "circle" | "ellipse" | "arrow" | "star";
 
 export interface SnapResult {
 	kind: SnappedKind;
@@ -239,6 +239,17 @@ function classifyClosed(body: readonly P[], gapFrac: number): SnapResult | null 
 	}
 	let strong: P[] = strongIdx.map((i) => ring[i]!);
 
+	// A five-pointed star drawn point-to-point without lifting the pen has
+	// ten corners packed into one ring, tighter than the generic
+	// curvature-peak search above (tuned for triangle/rectangle/circle)
+	// can reliably resolve - adjacent tip/valley corners fall inside each
+	// other's non-max-suppression window and half of them get silently
+	// dropped. Its own pass, straight on the radial profile (distance from
+	// centroid around the ring), does not depend on that resolution and
+	// runs independently rather than gated on `strong`.
+	const star = classifyStar(ring, cx, cy, diag, onChord);
+	if (star) return star;
+
 	// FIT-VERIFIED synthesis: the shape has to actually hug the drawn
 	// outline to win. One rounded corner kept slipping under every
 	// threshold and squares came out triangles (hardware, 2026-08-27) -
@@ -321,6 +332,88 @@ function classifyClosed(body: readonly P[], gapFrac: number): SnapResult | null 
 		return { kind: "ellipse", points: synthEllipse(cx, cy, w / 2, h / 2) };
 	}
 	return null;
+}
+
+/**
+ * Five-pointed star, found on the ring's radial profile (distance from the
+ * centroid around the outline) rather than the shared curvature-peak
+ * search: ten corners packed into one ring sit closer together than that
+ * search's non-max-suppression window can reliably separate, dropping
+ * half of them. A star's radius simply alternates far/near/far/near five
+ * times, which is a smaller, more direct signal to look for directly.
+ */
+function classifyStar(
+	ring: readonly P[],
+	cx: number,
+	cy: number,
+	diag: number,
+	onChord: (i: number) => boolean
+): SnapResult | null {
+	const N = ring.length;
+	const r = ring.map((p) => Math.hypot(p.x - cx, p.y - cy));
+
+	// Local extrema of the radial profile, each at least MIN_GAP samples
+	// from the last one accepted (a star's ten corners are evenly spaced;
+	// noise produces extra tiny wiggles much closer together than that).
+	const MIN_GAP = Math.floor(N / 14);
+	function extrema(wantMax: boolean): number[] {
+		const idx: number[] = [];
+		for (let i = 0; i < N; i++) {
+			if (onChord(i)) continue;
+			const prev = r[(i - 1 + N) % N]!;
+			const cur = r[i]!;
+			const next = r[(i + 1) % N]!;
+			const isPeak = wantMax ? cur >= prev && cur >= next : cur <= prev && cur <= next;
+			if (!isPeak) continue;
+			if (idx.length > 0 && Math.min(i - idx[idx.length - 1]!, N - (i - idx[idx.length - 1]!)) < MIN_GAP) {
+				// Keep whichever of the two nearby candidates is the more
+				// extreme point rather than just the first one found.
+				const better = wantMax ? cur > r[idx[idx.length - 1]!]! : cur < r[idx[idx.length - 1]!]!;
+				if (better) idx[idx.length - 1] = i;
+				continue;
+			}
+			idx.push(i);
+		}
+		// Wrap-around: the first and last accepted peaks may really be the
+		// same one straddling index 0.
+		if (idx.length > 1) {
+			const first = idx[0]!;
+			const last = idx[idx.length - 1]!;
+			if (Math.min(first + (N - last), N - (first + (N - last))) < MIN_GAP) idx.pop();
+		}
+		return idx;
+	}
+
+	const maxima = extrema(true);
+	const minima = extrema(false);
+	if (maxima.length !== 5 || minima.length !== 5) return null;
+
+	// Outer tips and inner valleys must actually alternate around the
+	// ring, and the tips must reach well past the valleys - otherwise
+	// this is some other ten-cornered wobble, not a star.
+	const tagged = [...maxima.map((i) => ({ i, outer: true })), ...minima.map((i) => ({ i, outer: false }))].sort(
+		(a, b) => a.i - b.i
+	);
+	for (let k = 0; k < 10; k++) {
+		if (tagged[k]!.outer === tagged[(k + 1) % 10]!.outer) return null;
+	}
+	const outerAvg = maxima.reduce((s, i) => s + r[i]!, 0) / 5;
+	const innerAvg = minima.reduce((s, i) => s + r[i]!, 0) / 5;
+	if (outerAvg < innerAvg * 1.3) return null;
+	if (outerAvg * 2 < diag * 0.3) return null; // too small to be a confident read
+
+	// Fit check against a regular star at this radius pair, oriented from
+	// the first detected tip - same bar the other shapes hold to.
+	const startAngle = Math.atan2(ring[maxima[0]!]!.y - cy, ring[maxima[0]!]!.x - cx);
+	const idealCorners: P[] = [];
+	for (let k = 0; k < 10; k++) {
+		const rad = k % 2 === 0 ? outerAvg : innerAvg;
+		const angle = startAngle + (k * Math.PI) / 5;
+		idealCorners.push({ x: cx + Math.cos(angle) * rad, y: cy + Math.sin(angle) * rad });
+	}
+	if (polygonFitError(ring, idealCorners, diag, onChord) > 0.12) return null;
+
+	return { kind: "star", points: synthPolygon(idealCorners) };
 }
 
 /**
@@ -414,96 +507,79 @@ function synthArrow(tail: P, tip: P): InkPoint[] {
 /**
  * Arrow recognition for open strokes.
  *
- * Algorithm:
- *  1. The two most-distant points of the stroke define the shaft axis.
- *  2. The shaft body (points NOT near either endpoint) must be straight
- *     within LINE_TOLERANCE (same as the line recognizer).
- *  3. One endpoint must show a "flutter" cluster — a group of points that
- *     deviate PERPENDICULARLY from the shaft by at least ARROW_FLUTTER_MIN
- *     (fraction of shaft length). That cluster is the arrowhead wobble; its
- *     centroid identifies which end is the tip.
+ * Algorithm (rewritten 2026-08-31 after the endpoint-pair version proved
+ * unreliable on crooked/curved shafts and lopsided or one-winged
+ * arrowheads):
+ *
+ *  1. The tail is simply where the stroke started (body[0]). The tip is
+ *     the point FARTHEST from the tail. A real arrowhead's wings sweep
+ *     BACKWARD, toward the tail, so they sit closer to the tail than the
+ *     tip does - the tip search is naturally immune to a big or lopsided
+ *     arrowhead hijacking it, which is what used to happen when the old
+ *     "two most-distant points in the whole stroke" search picked a wing
+ *     tip instead of the real tip.
+ *  2. No straightness test on the shaft. A hand-drawn shaft that bows or
+ *     kinks is still obviously meant as a straight arrow - the synthesized
+ *     result is always a clean line - so requiring the input to already be
+ *     straight only rejected honest attempts at a curved or unsteady hand.
+ *     Instead, a single sanity check replaces it: total path length versus
+ *     tail-to-tip distance. A shaft (even a bowed one) plus a normal
+ *     arrowhead retraces only a little (ratio well under 2); an actual
+ *     scribble backtracks constantly and blows well past that, which is
+ *     what tells the two apart without caring whether the path was ever
+ *     straight.
+ *  3. Ink spatially near the tip (within ARROW_TIP_RADIUS of shaft length)
+ *     counts as a wing once it deviates PERPENDICULARLY from the tail-tip
+ *     axis by at least ARROW_FLUTTER_MIN (fraction of shaft length).
+ *     "Spatially near", not "later in the point array": a tip search that
+ *     lands - by a hair, on jitter - on the very last sampled point left
+ *     nothing after it to inspect under the previous, order-based version,
+ *     even though the actual wing ink was sitting right next to that tip,
+ *     just a few samples earlier. One wing is enough - most real
+ *     arrowheads only get two, but a single confident wing already says
+ *     "arrow", not "line with a hook".
  *
  * The shaft length gate matches MIN_PATH_LENGTH; a short flutter on a short
  * stroke is too ambiguous to classify as an arrow.
  */
-// Widened from the original 0.15/0.07/3 (hardware, 2026-08-31): real
-// arrowheads are drawn bigger and with fewer sampled points near the tip
-// than the original synthetic test fixtures assumed. A natural arrowhead
-// often runs 20-30% of the shaft length, not 15%, so those wing points
-// were landing in "shaftBody" and failing the straightness check instead
-// of ever reaching the flutter test; and pen prediction/smoothing upstream
-// (see Prediction.ts) softens the raw back-and-forth wobble, so 2 clearly
-// deviating points is a safer real-world bar than 3.
-const ARROW_SHAFT_FRACTION = 0.26; // fraction of shaft length = "near an endpoint"
-const ARROW_FLUTTER_MIN = 0.05;    // min perp deviation fraction = arrowhead flutter
-const ARROW_FLUTTER_COUNT = 2;     // min points in the flutter cluster
+const ARROW_TIP_RADIUS = 0.3;    // fraction of shaft length = "near the tip"
+const ARROW_FLUTTER_MIN = 0.03;  // min perp deviation fraction = arrowhead wing
+const ARROW_MAX_PATH_RATIO = 4.5; // pathLength / shaftLen ceiling before it's "wandering", not an arrow
 
 function classifyArrow(body: readonly P[]): SnapResult | null {
 	if (body.length < 12) return null;
 
-	// 1. Find the two most-distant points — they define the shaft axis.
-	let shaftA = body[0]!;
-	let shaftB = body[body.length - 1]!;
-	let maxD = 0;
-	for (let i = 0; i < body.length; i++) {
-		for (let j = i + 1; j < body.length; j++) {
-			const d = dist(body[i]!, body[j]!);
-			if (d > maxD) { maxD = d; shaftA = body[i]!; shaftB = body[j]!; }
-		}
+	// 1. Tail = where the stroke started. Tip = farthest point from it.
+	const tail = body[0]!;
+	let tip = tail;
+	let shaftLen = 0;
+	for (let i = 1; i < body.length; i++) {
+		const d = dist(tail, body[i]!);
+		if (d > shaftLen) { shaftLen = d; tip = body[i]!; }
 	}
-	const shaftLen = maxD;
 	if (shaftLen < MIN_PATH_LENGTH) return null;
 
-	// 2. Points near shaftA or shaftB (within ARROW_SHAFT_FRACTION of
-	//    shaft length from either endpoint) form the endpoint clusters; the
-	//    rest must be straight.
-	const endThresh = shaftLen * ARROW_SHAFT_FRACTION;
-	const shaftBody: P[] = [];
-	const nearA: P[] = [];
-	const nearB: P[] = [];
+	// 2. Reject genuine scribbles: a shaft (bowed or not) plus an
+	//    arrowhead retraces only a little ground relative to how far it
+	//    ultimately got from the tail.
+	let traced = 0;
+	for (let i = 1; i < body.length; i++) traced += dist(body[i - 1]!, body[i]!);
+	if (traced > shaftLen * ARROW_MAX_PATH_RATIO) return null;
+
+	// 3. Ink near the tip that strays off the tail→tip axis is a wing.
+	const ux = (tip.x - tail.x) / shaftLen;
+	const uy = (tip.y - tail.y) / shaftLen;
+	const tipRadius = shaftLen * ARROW_TIP_RADIUS;
+	let sawWing = false;
 	for (const p of body) {
-		const dA = dist(p, shaftA);
-		const dB = dist(p, shaftB);
-		if (dA <= endThresh) { nearA.push(p); continue; }
-		if (dB <= endThresh) { nearB.push(p); continue; }
-		shaftBody.push(p);
+		if (dist(p, tip) > tipRadius) continue;
+		const vx = p.x - tail.x;
+		const vy = p.y - tail.y;
+		const perp = Math.abs(vx * uy - vy * ux);
+		if (perp > shaftLen * ARROW_FLUTTER_MIN) { sawWing = true; break; }
 	}
-	if (shaftBody.length < 4) return null;
+	if (!sawWing) return null;
 
-	// 3. Shaft body straightness (same formula as classifyOpen).
-	let worstShaft = 0;
-	for (const p of shaftBody) {
-		const d = Math.abs(
-			(shaftB.x - shaftA.x) * (shaftA.y - p.y) -
-			(shaftA.x - p.x) * (shaftB.y - shaftA.y)
-		) / shaftLen;
-		if (d > worstShaft) worstShaft = d;
-	}
-	if (worstShaft > shaftLen * LINE_TOLERANCE * 1.5) return null;
-
-	// 4. Check each endpoint cluster for sufficient perpendicular flutter.
-	//    "Flutter" = points that deviate perpendicularly from the shaft axis
-	//    by more than ARROW_FLUTTER_MIN × shaft length.
-	function perpFlutterCount(cluster: readonly P[]): number {
-		let n = 0;
-		for (const p of cluster) {
-			const perp = Math.abs(
-				(shaftB.x - shaftA.x) * (shaftA.y - p.y) -
-				(shaftA.x - p.x) * (shaftB.y - shaftA.y)
-			) / shaftLen;
-			if (perp > shaftLen * ARROW_FLUTTER_MIN) n++;
-		}
-		return n;
-	}
-
-	const flutterA = perpFlutterCount(nearA);
-	const flutterB = perpFlutterCount(nearB);
-	const tipAtB = flutterB >= ARROW_FLUTTER_COUNT && flutterB >= flutterA;
-	const tipAtA = flutterA >= ARROW_FLUTTER_COUNT && flutterA > flutterB;
-	if (!tipAtA && !tipAtB) return null;
-
-	const tail = tipAtB ? shaftA : shaftB;
-	const tip  = tipAtB ? shaftB : shaftA;
 	return { kind: "arrow", points: synthArrow(tail, tip) };
 }
 
