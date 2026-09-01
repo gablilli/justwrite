@@ -33,7 +33,7 @@ import {
 } from "./ToolbarCorner";
 
 export interface MobileToolsHost {
-	/** Execute a command by its full id (e.g. "handwriting:inline-tool-pen"). */
+	/** Execute a command by its full id (e.g. "justwrite:inline-tool-pen"). */
 	exec(commandId: string): void;
 	/** The active nib: "pen" or "highlighter". */
 	activeTool(): string;
@@ -110,14 +110,14 @@ const BUTTONS: ButtonSpec[] = [
 		icon: "pen",
 		glyph: "P",
 		label: "Pen",
-		commandId: "handwriting:inline-tool-pen",
+		commandId: "justwrite:inline-tool-pen",
 		isActive: (h) => tipInks(h) && h.activeTool() === "pen",
 	},
 	{
 		icon: "highlighter",
 		glyph: "H",
 		label: "Highlighter",
-		commandId: "handwriting:inline-tool-highlighter",
+		commandId: "justwrite:inline-tool-highlighter",
 		isActive: (h) => tipInks(h) && h.activeTool() === "highlighter",
 	},
 	// The standalone palette button is gone: color now lives INSIDE each
@@ -128,7 +128,7 @@ const BUTTONS: ButtonSpec[] = [
 		icon: "eraser",
 		glyph: "E",
 		label: "Eraser",
-		commandId: "handwriting:inline-tool-eraser",
+		commandId: "justwrite:inline-tool-eraser",
 		isActive: (h) => h.eraserOn(),
 		startsGroup: true,
 	},
@@ -136,21 +136,21 @@ const BUTTONS: ButtonSpec[] = [
 		icon: "lasso",
 		glyph: "L",
 		label: "Lasso",
-		commandId: "handwriting:inline-tool-lasso",
+		commandId: "justwrite:inline-tool-lasso",
 		isActive: (h) => h.lassoOn(),
 	},
 	{
 		icon: "unfold-vertical",
 		glyph: "S",
 		label: "Insert space",
-		commandId: "handwriting:inline-tool-space",
+		commandId: "justwrite:inline-tool-space",
 		isActive: (h) => h.spaceOn(),
 	},
 	{
 		icon: "hand",
 		glyph: "M",
 		label: "Pan",
-		commandId: "handwriting:inline-tool-pan",
+		commandId: "justwrite:inline-tool-pan",
 		isActive: (h) => h.panOn(),
 	},
 	{
@@ -158,21 +158,21 @@ const BUTTONS: ButtonSpec[] = [
 		glyph: "D",
 		label: "Delete selection",
 		startsGroup: true,
-		commandId: "handwriting:delete-selected-ink",
+		commandId: "justwrite:delete-selected-ink",
 		isEnabled: (h) => h.hasInkSelection(),
 	},
 	{
 		icon: "copy",
 		glyph: "Cp",
 		label: "Copy selected ink",
-		commandId: "handwriting:copy-selected-ink",
+		commandId: "justwrite:copy-selected-ink",
 		isEnabled: (h) => h.hasInkSelection(),
 	},
 	{
 		icon: "clipboard-paste",
 		glyph: "V",
 		label: "Paste ink",
-		commandId: "handwriting:paste-ink",
+		commandId: "justwrite:paste-ink",
 		isEnabled: (h) => h.canPasteInk(),
 	},
 	{
@@ -280,9 +280,9 @@ export class MobileTools {
 				// Color and size live together in one panel per nib now,
 				// so there is no separate palette button to alias.
 				const nib =
-					spec.commandId === "handwriting:inline-tool-pen"
+					spec.commandId === "justwrite:inline-tool-pen"
 						? "pen"
-						: spec.commandId === "handwriting:inline-tool-highlighter"
+						: spec.commandId === "justwrite:inline-tool-highlighter"
 							? "highlighter"
 							: null;
 				if (nib && (spec.isActive?.(this.host) ?? true)) {
@@ -487,7 +487,7 @@ export class MobileTools {
 		this.reticleChip.toggleClass("is-current", !whole);
 		this.slider.input.value = String(this.host.eraserRadiusPx());
 		this.slider.val.setText(`${this.host.eraserRadiusPx()}px`);
-		hangUnder(this.slider.pop, "handwriting:inline-tool-eraser", this.host.eraserOn());
+		hangUnder(this.slider.pop, "justwrite:inline-tool-eraser", this.host.eraserOn());
 		const nib = this.host.eraserOn() ? null : this.openInkSlider;
 		// Each nib's panel carries its own size AND color together now, so
 		// one populate step covers both instead of a separate swatch pop.
@@ -534,8 +534,8 @@ export class MobileTools {
 			hangUnder(
 				panel.pop,
 				panel.tool === "pen"
-					? "handwriting:inline-tool-pen"
-					: "handwriting:inline-tool-highlighter",
+					? "justwrite:inline-tool-pen"
+					: "justwrite:inline-tool-highlighter",
 				show
 			);
 		};
