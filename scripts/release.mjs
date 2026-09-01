@@ -38,8 +38,8 @@ const REQUIRED_CSS = [
 	[".cm-scroller.justwrite-hscroll-axis", "v0.13.8 horizontal axis patch (moved off inline styles)"],
 	[".embedded-backlinks", "v0.13.0 backlinks border removal on Handwriting pages"],
 	['.metadata-property[data-property-key="handwriting-page-id"]', "page-id property hidden from Properties UI"],
-	["body.handwriting-active-page .status-bar", "status bar kept off the writing surface"],
-	[".handwriting-corner-bottom-left", "toolbar corner placement (settings)"],
+	["body.justwrite-active-page .status-bar", "status bar kept off the writing surface"],
+	[".justwrite-corner-bottom-left", "toolbar corner placement (settings)"],
 ];
 
 const problems = [];
