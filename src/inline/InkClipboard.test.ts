@@ -73,7 +73,7 @@ describe("clipboard marker", () => {
 	it("a copy mints a marker that names its own ink", () => {
 		copyInk([stroke("s1", 0), stroke("s2", 40)], "a.md");
 		const marker = inkClipboardMarker()!;
-		expect(marker.startsWith("handwriting-ink/v1 ")).toBe(true);
+		expect(marker.startsWith("justwrite-ink/v1 ")).toBe(true);
 		expect(marker).toContain("(2 strokes)");
 		expect(markerToken(marker)).not.toBeNull();
 		expect(markerIsCurrent(marker)).toBe(true);
@@ -86,7 +86,7 @@ describe("clipboard marker", () => {
 
 	it("ordinary text is never mistaken for a marker", () => {
 		copyInk([stroke("s1", 0)], "a.md");
-		for (const text of ["", "hello", "handwriting ink", "  notes about handwriting-ink/v1  "]) {
+		for (const text of ["", "hello", "handwriting ink", "  notes about justwrite-ink/v1  "]) {
 			expect(markerToken(text)).toBeNull();
 			expect(markerIsCurrent(text)).toBe(false);
 		}

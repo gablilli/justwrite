@@ -1,5 +1,5 @@
 /** Class used instead of a broad `:has()` selector in the shipped stylesheet. */
-export const ID_ONLY_METADATA_CLASS = "handwriting-metadata-id-only";
+export const ID_ONLY_METADATA_CLASS = "justwrite-metadata-id-only";
 
 /**
  * Top-level keys of a leading frontmatter block, or null when the text has no

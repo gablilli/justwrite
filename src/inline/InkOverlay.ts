@@ -53,9 +53,9 @@ export function inkCanvasReallocs(): number {
  */
 const SCALE_EPSILON = 1e-3;
 
-const LASSO_CURSOR_CLASS = "handwriting-pen-hover-lasso";
-const SPACE_CURSOR_CLASS = "handwriting-pen-hover-space";
-const PAN_CURSOR_CLASS = "handwriting-pen-hover-pan";
+const LASSO_CURSOR_CLASS = "justwrite-pen-hover-lasso";
+const SPACE_CURSOR_CLASS = "justwrite-pen-hover-space";
+const PAN_CURSOR_CLASS = "justwrite-pen-hover-pan";
 import {
 	DEFAULT_TOOLBAR_CORNER,
 	ToolbarCorner,
@@ -644,7 +644,7 @@ class InkOverlayPlugin {
 	private spacerLeft = Number.NaN;
 	private spacerTop = Number.NaN;
 	private axisGuard = new ScrollAxisGuard();
-	/** The `.markdown-source-view` ancestor carrying the `handwriting-page` class. */
+	/** The `.markdown-source-view` ancestor carrying the `justwrite-page` class. */
 	private pageClassHost: HTMLElement | null = null;
 	/** Keeps the page-id-only Properties block class in step with Obsidian's DOM. */
 	private metadataObserver: MutationObserver | null = null;
@@ -814,7 +814,7 @@ class InkOverlayPlugin {
 			scroller.setCssStyles({ position: "relative" });
 			this.scrollPositionPatched = true;
 		}
-		const container = scroller.createDiv({ cls: "handwriting-ink-overlay" });
+		const container = scroller.createDiv({ cls: "justwrite-ink-overlay" });
 		this.container = container;
 		// Zero until syncBand writes the first box: an absolutely positioned
 		// child extends scrollable overflow, and a full-height band placed
@@ -852,7 +852,7 @@ class InkOverlayPlugin {
 		// If it costs scrolling smoothness, put it back - that is the trade
 		// being tested, and the two are measured by different numbers
 		// (age@present in the ink metrics against how the scroll feels).
-		const layer = container.createDiv({ cls: "handwriting-ink-layer" });
+		const layer = container.createDiv({ cls: "justwrite-ink-layer" });
 		layer.setCssStyles({
 			position: "absolute",
 			inset: "0",
@@ -912,9 +912,9 @@ class InkOverlayPlugin {
 		// One low-latency surface in the stack is apparently the budget.
 		this.tail = new TailRenderer(this.tailCanvas);
 
-		this.penCursorEl = container.createDiv({ cls: "handwriting-pen-cursor" });
+		this.penCursorEl = container.createDiv({ cls: "justwrite-pen-cursor" });
 		this.penCursorEl.setAttribute("aria-hidden", "true");
-		this.eraserEl = container.createDiv({ cls: "handwriting-eraser-cursor" });
+		this.eraserEl = container.createDiv({ cls: "justwrite-eraser-cursor" });
 		this.eraserEl.setAttribute("aria-hidden", "true");
 
 		// Pen tools strip: on mobile the palette hides with the keyboard, so
@@ -1096,9 +1096,9 @@ class InkOverlayPlugin {
 
 	/**
 	 * Presentation only: mark the editor chrome of a note that IS a Handwriting
-	 * page (`handwriting-page` on the markdown view, for scoped CSS hooks like the
+	 * page (`justwrite-page` on the markdown view, for scoped CSS hooks like the
 	 * backlinks divider), and mark the scroller once Handwriting has actually made
-	 * it horizontally scrollable (`handwriting-hscroll`, for the visible horizontal
+	 * it horizontally scrollable (`justwrite-hscroll`, for the visible horizontal
 	 * scrollbar). Reads session state and cheap metadata; never mutates the
 	 * note.
 	 */
@@ -1121,7 +1121,7 @@ class InkOverlayPlugin {
 		}
 		const path = this.filePath();
 		this.pageClassHost.classList.toggle(
-			"handwriting-page",
+			"justwrite-page",
 			!!path && inlineInk.isHandwritingPage(path)
 		);
 		updateMetadataVisibility(this.pageClassHost, this.headFrontmatterKeys);
@@ -1228,11 +1228,11 @@ class InkOverlayPlugin {
 		this.spacer = null;
 		this.spacerLeft = Number.NaN;
 		this.spacerTop = Number.NaN;
-		this.view.scrollDOM.classList.remove("handwriting-hscroll");
+		this.view.scrollDOM.classList.remove("justwrite-hscroll");
 		this.metadataObserver?.disconnect();
 		this.metadataObserver = null;
 		if (this.pageClassHost) clearMetadataVisibility(this.pageClassHost);
-		this.pageClassHost?.classList.remove("handwriting-page");
+		this.pageClassHost?.classList.remove("justwrite-page");
 		this.pageClassHost = null;
 		this.restoreScrollableAxis();
 		this.axisChecked = false;
@@ -3676,7 +3676,7 @@ class InkOverlayPlugin {
 				scroller.setCssStyles({ position: "relative" });
 				this.scrollPositionPatched = true;
 			}
-			this.spacer = scroller.createDiv({ cls: "handwriting-surface-extent" });
+			this.spacer = scroller.createDiv({ cls: "justwrite-surface-extent" });
 			this.spacer.setCssStyles({
 				position: "absolute",
 				width: "1px",
@@ -3706,7 +3706,7 @@ class InkOverlayPlugin {
 			moved = true;
 		}
 		if (moved) scrollProbeExtent(`spacer -> (${pos.left},${pos.top})`);
-		scroller.classList.toggle("handwriting-hscroll", granted.x > 0);
+		scroller.classList.toggle("justwrite-hscroll", granted.x > 0);
 		if (moved || !this.lastReach) this.measureReach(scroller, pos.left + 1);
 	}
 

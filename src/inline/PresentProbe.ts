@@ -86,7 +86,7 @@ export function regionCensus(
 		// Containers are identified two ways so the count cannot silently
 		// read zero again: by class (restored from the lost build) OR by
 		// membership in the live instance registry.
-		const isContainer = el.classList?.contains("handwriting-ink-overlay") || liveSet.has(el);
+		const isContainer = el.classList?.contains("justwrite-ink-overlay") || liveSet.has(el);
 		if (isContainer) {
 			handwritingContainers++;
 			if (!liveSet.has(el)) ghostContainers++;

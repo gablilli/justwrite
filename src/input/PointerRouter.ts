@@ -104,7 +104,7 @@ function isTextEditingContext(target: EventTarget | null): boolean {
 			h.tagName === "TEXTAREA" ||
 			h.tagName === "INPUT" ||
 			h.tagName === "SELECT" ||
-			h.closest?.(".cm-editor, .handwriting-box-editor") != null
+			h.closest?.(".cm-editor, .justwrite-box-editor") != null
 		);
 	};
 	return looksEditable(target as Element | null) || looksEditable(document.activeElement);
@@ -247,7 +247,7 @@ export class PointerRouter {
 		// landing on a button must click it, not start a stroke or steal
 		// capture. Without this, mode switches are unusable by pen/touch.
 		const target = e.target as HTMLElement | null;
-		if (target?.closest?.(".handwriting-ui")) return;
+		if (target?.closest?.(".justwrite-ui")) return;
 
 		this.refreshRect();
 		switch (e.pointerType) {

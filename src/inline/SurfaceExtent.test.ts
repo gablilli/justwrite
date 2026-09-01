@@ -186,7 +186,7 @@ describe("ScrollAxisGuard", () => {
 		// this too, but a stale styles.css in dev should fail loudly here. The
 		// Handwriting-page ancestor supplies enough specificity without important.
 		const rule = new RegExp(
-			`\\.markdown-source-view\\.handwriting-page\\s+\\.cm-scroller\\.${HSCROLL_AXIS_CLASS}\\s*\\{([^}]*)\\}`
+			`\\.markdown-source-view\\.justwrite-page\\s+\\.cm-scroller\\.${HSCROLL_AXIS_CLASS}\\s*\\{([^}]*)\\}`
 		);
 		const m = css.match(rule);
 		expect(m, "axis rule present").not.toBeNull();

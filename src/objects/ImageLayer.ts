@@ -43,7 +43,7 @@ export class ImageLayer {
 		private app: App,
 		private sourcePath: string
 	) {
-		this.el = parent.createDiv({ cls: "handwriting-images" });
+		this.el = parent.createDiv({ cls: "justwrite-images" });
 	}
 
 	setSourcePath(path: string): void {
@@ -70,7 +70,7 @@ export class ImageLayer {
 			if (existing.resolved !== model.target) this.applySource(existing);
 			return;
 		}
-		const el = this.el.createDiv({ cls: "handwriting-image" });
+		const el = this.el.createDiv({ cls: "justwrite-image" });
 		const img = el.createEl("img");
 		img.draggable = false;
 		const view: ImageView = { model, el, img, resolved: null };

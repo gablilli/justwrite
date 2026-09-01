@@ -476,17 +476,35 @@ function polygonFitError(
 }
 
 /**
- * Synthesize a clean arrow from tail A→B with a symmetric arrowhead at B.
+ * Synthesize an arrow: curved shaft from the body points, clean arrowhead at tip.
  * HEAD_RATIO: arrowhead arm length relative to shaft length.
  * HEAD_ANGLE: half-opening angle of the arrowhead (radians).
+ * HEAD_MAX_PX: absolute cap on the arrowhead arm so oversized drawn wings
+ *   do not produce an unreadably huge synthesized head.
  */
 const ARROW_HEAD_RATIO = 0.22;
 const ARROW_HEAD_ANGLE = Math.PI / 6; // 30 °
+const ARROW_HEAD_MAX_PX = 60;         // world-unit ceiling for the arm length
 
-function synthArrow(tail: P, tip: P): InkPoint[] {
-	const shaftLen = dist(tail, tip);
-	const headLen = shaftLen * ARROW_HEAD_RATIO;
-	const angle = Math.atan2(tip.y - tail.y, tip.x - tail.x);
+/**
+ * Synthesize an arrow that keeps the drawn shaft curve but replaces the
+ * arrowhead with a clean, proportional one.
+ *
+ * shaftBody: the stroke points from tail up to (but not past) where the
+ *   arrowhead wings begin.  The last point in this array is near the tip.
+ * tip: the geometrically farthest point from the tail (the apex).
+ * shaftLen: straight-line distance tail→tip, used to size the arrowhead.
+ */
+function synthArrow(shaftBody: readonly P[], tip: P, shaftLen: number): InkPoint[] {
+	// Derive the arrowhead direction from the final approach of the shaft,
+	// not the whole shaft direction - this gives the right angle even on
+	// strongly curved arrows.
+	const approachLen = Math.min(6, shaftBody.length - 1);
+	const approachFrom = shaftBody[Math.max(0, shaftBody.length - 1 - approachLen)]!;
+	const angle = Math.atan2(tip.y - approachFrom.y, tip.x - approachFrom.x);
+
+	// Cap the arrowhead arm: proportional to shaft but never huge.
+	const headLen = Math.min(shaftLen * ARROW_HEAD_RATIO, ARROW_HEAD_MAX_PX);
 	const leftWing: P = {
 		x: tip.x - headLen * Math.cos(angle - ARROW_HEAD_ANGLE),
 		y: tip.y - headLen * Math.sin(angle - ARROW_HEAD_ANGLE),
@@ -495,12 +513,22 @@ function synthArrow(tail: P, tip: P): InkPoint[] {
 		x: tip.x - headLen * Math.cos(angle + ARROW_HEAD_ANGLE),
 		y: tip.y - headLen * Math.sin(angle + ARROW_HEAD_ANGLE),
 	};
-	// Shaft, then left wing, back to tip, then right wing — one continuous path.
+
+	// Convert shaft body to InkPoints (preserving the drawn curve).
+	const shaftPts: InkPoint[] = shaftBody.map((p, i) => ({
+		x: p.x,
+		y: p.y,
+		pressure: 0.5,
+		t: i * 8,
+	}));
+	const headT = shaftPts.length * 8;
+
+	// Shaft (curved), then left wing, back to tip, then right wing.
 	return [
-		...synthSegment(tail, tip),
-		...synthSegment(tip, leftWing),
-		...synthSegment(leftWing, tip),
-		...synthSegment(tip, rightWing),
+		...shaftPts,
+		...synthSegment(tip, leftWing, headT),
+		...synthSegment(leftWing, tip, headT + 100),
+		...synthSegment(tip, rightWing, headT + 200),
 	];
 }
 
@@ -567,12 +595,18 @@ function classifyArrow(body: readonly P[]): SnapResult | null {
 	if (traced > shaftLen * ARROW_MAX_PATH_RATIO) return null;
 
 	// 3. Ink near the tip that strays off the tail→tip axis is a wing.
+	//    Track the first index that enters the arrowhead zone so we can
+	//    split the shaft from the head geometry for synthesis.
 	const ux = (tip.x - tail.x) / shaftLen;
 	const uy = (tip.y - tail.y) / shaftLen;
 	const tipRadius = shaftLen * ARROW_TIP_RADIUS;
 	let sawWing = false;
-	for (const p of body) {
+	let shaftEndIdx = body.length - 1;
+	for (let i = 0; i < body.length; i++) {
+		const p = body[i]!;
 		if (dist(p, tip) > tipRadius) continue;
+		// First sample inside the arrowhead zone — shaft ends just before here.
+		if (shaftEndIdx === body.length - 1) shaftEndIdx = Math.max(0, i - 1);
 		const vx = p.x - tail.x;
 		const vy = p.y - tail.y;
 		const perp = Math.abs(vx * uy - vy * ux);
@@ -580,7 +614,9 @@ function classifyArrow(body: readonly P[]): SnapResult | null {
 	}
 	if (!sawWing) return null;
 
-	return { kind: "arrow", points: synthArrow(tail, tip) };
+	// Shaft body: drawn points from tail up to the arrowhead zone.
+	const shaftBody = body.slice(0, shaftEndIdx + 1);
+	return { kind: "arrow", points: synthArrow(shaftBody.length > 1 ? shaftBody : [tail], tip, shaftLen) };
 }
 
 function classifyOpen(body: readonly P[]): SnapResult | null {
@@ -603,13 +639,13 @@ function classifyOpen(body: readonly P[]): SnapResult | null {
 	return { kind: "line", points: synthSegment(a, b) };
 }
 
-function synthSegment(a: P, b: P): InkPoint[] {
+function synthSegment(a: P, b: P, tOffset = 0): InkPoint[] {
 	const len = dist(a, b);
 	const n = Math.max(2, Math.ceil(len / SYNTH_STEP));
 	const out: InkPoint[] = [];
 	for (let i = 0; i <= n; i++) {
 		const f = i / n;
-		out.push({ x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, pressure: 0.5, t: i * 8 });
+		out.push({ x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, pressure: 0.5, t: tOffset + i * 8 });
 	}
 	return out;
 }

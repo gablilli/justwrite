@@ -219,7 +219,7 @@ export class MobileTools {
 	constructor(parent: HTMLElement, private host: MobileToolsHost) {
 		// The collapsed form: one small pen button that brings the strip back.
 		this.pill = parent.createEl("button", {
-			cls: "handwriting-pen-pill",
+			cls: "justwrite-pen-pill",
 			attr: { "aria-label": "Pen tools", type: "button" },
 		});
 		setIcon(this.pill, "pen");
@@ -233,9 +233,9 @@ export class MobileTools {
 			ev.preventDefault();
 			this.setCollapsed(false);
 		});
-		this.el = parent.createDiv({ cls: "handwriting-mobile-tools" });
+		this.el = parent.createDiv({ cls: "justwrite-mobile-tools" });
 		const collapse = this.el.createEl("button", {
-			cls: "handwriting-mobile-tool handwriting-tools-collapse",
+			cls: "justwrite-mobile-tool justwrite-tools-collapse",
 			attr: { "aria-label": "Collapse pen tools", type: "button" },
 		});
 		setIcon(collapse, "chevron-right");
@@ -247,10 +247,10 @@ export class MobileTools {
 		});
 		for (const spec of BUTTONS) {
 			if (spec.startsGroup) {
-				this.el.createDiv({ cls: "handwriting-mobile-tools-divider" });
+				this.el.createDiv({ cls: "justwrite-mobile-tools-divider" });
 			}
 			const b = this.el.createEl("button", {
-				cls: "handwriting-mobile-tool",
+				cls: "justwrite-mobile-tool",
 				attr: { "aria-label": spec.label, type: "button" },
 			});
 			setIcon(b, spec.icon);
@@ -292,15 +292,15 @@ export class MobileTools {
 			format: (v: number) => string,
 			onValue: (v: number, commit: boolean) => void
 		): { pop: HTMLElement; input: HTMLInputElement; val: HTMLElement } => {
-			const pop = this.el.createDiv({ cls: "handwriting-slider-pop" });
+			const pop = this.el.createDiv({ cls: "justwrite-slider-pop" });
 			// The slot owns the layout (28x104); the input centers inside it,
 			// so whatever app.css does to range inputs cannot move the pop.
-			const slot = pop.createDiv({ cls: "handwriting-slider-slot" });
+			const slot = pop.createDiv({ cls: "justwrite-slider-slot" });
 			const input = slot.createEl("input", {
-				cls: "handwriting-eraser-slider",
+				cls: "justwrite-eraser-slider",
 				attr: { type: "range", min, max, step, "aria-label": aria },
 			});
-			const val = pop.createDiv({ cls: "handwriting-slider-val" });
+			const val = pop.createDiv({ cls: "justwrite-slider-val" });
 			const show = () => {
 				val.setText(format(Number(input.value)));
 			};
@@ -319,11 +319,11 @@ export class MobileTools {
 		// ring touches whole, Reticle takes only what it covers. Same
 		// setting as the tab, so the two always agree.
 		{
-			const chips = this.slider.pop.createDiv({ cls: "handwriting-mode-chips" });
+			const chips = this.slider.pop.createDiv({ cls: "justwrite-mode-chips" });
 			this.slider.pop.insertBefore(chips, this.slider.pop.firstChild);
 			const chip = (label: string, whole: boolean): HTMLElement => {
 				const el = chips.createEl("button", {
-					cls: "handwriting-mode-chip",
+					cls: "justwrite-mode-chip",
 					text: label,
 					attr: { type: "button" },
 				});
@@ -383,13 +383,13 @@ export class MobileTools {
 		format: (v: number) => string,
 		onValue: (v: number, commit: boolean) => void
 	): ToolPanel {
-		const pop = this.el.createDiv({ cls: "handwriting-slider-pop handwriting-tool-panel" });
-		const sizeRow = pop.createDiv({ cls: "handwriting-hslider-row" });
+		const pop = this.el.createDiv({ cls: "justwrite-slider-pop justwrite-tool-panel" });
+		const sizeRow = pop.createDiv({ cls: "justwrite-hslider-row" });
 		const input = sizeRow.createEl("input", {
-			cls: "handwriting-hslider",
+			cls: "justwrite-hslider",
 			attr: { type: "range", min, max, step, "aria-label": aria },
 		});
-		const val = sizeRow.createDiv({ cls: "handwriting-slider-val" });
+		const val = sizeRow.createDiv({ cls: "justwrite-slider-val" });
 		const show = () => val.setText(format(Number(input.value)));
 		input.addEventListener("input", () => {
 			show();
@@ -397,12 +397,12 @@ export class MobileTools {
 		});
 		input.addEventListener("change", () => onValue(Number(input.value), true));
 		show();
-		pop.createDiv({ cls: "handwriting-tool-panel-divider" });
-		const swatches = pop.createDiv({ cls: "handwriting-color-grid" });
-		const hexRow = pop.createDiv({ cls: "handwriting-hex-row" });
-		const hexSwatch = hexRow.createDiv({ cls: "handwriting-hex-preview" });
+		pop.createDiv({ cls: "justwrite-tool-panel-divider" });
+		const swatches = pop.createDiv({ cls: "justwrite-color-grid" });
+		const hexRow = pop.createDiv({ cls: "justwrite-hex-row" });
+		const hexSwatch = hexRow.createDiv({ cls: "justwrite-hex-preview" });
 		const hexInput = hexRow.createEl("input", {
-			cls: "handwriting-hex-input",
+			cls: "justwrite-hex-input",
 			attr: {
 				type: "text",
 				maxlength: "7",
@@ -486,7 +486,7 @@ export class MobileTools {
 				panel.swatches.empty();
 				for (const c of this.host.palette()) {
 					const sw = panel.swatches.createEl("button", {
-						cls: "handwriting-color-swatch",
+						cls: "justwrite-color-swatch",
 						attr: { "aria-label": c.name, type: "button" },
 					});
 					// The visible circle lives on a nested, non-interactive
@@ -500,7 +500,7 @@ export class MobileTools {
 					// those things, so its fixed 22x22 circle cannot inherit
 					// either quirk - whatever size WebKit decides the button
 					// should be, the dot centered inside it stays exact.
-					const dot = sw.createSpan({ cls: "handwriting-color-swatch-dot" });
+					const dot = sw.createSpan({ cls: "justwrite-color-swatch-dot" });
 					dot.setCssStyles({ backgroundColor: c.hex });
 					sw.toggleClass("is-current", c.hex.toLowerCase() === current.toLowerCase());
 					sw.addEventListener("pointerdown", (ev) => ev.preventDefault());

@@ -51,7 +51,7 @@ import { HIGHLIGHTER_ALPHA } from "../ink/PenStyle";
  * own canvas, so this is a battery bound as much as a memory one.
  */
 const MAX_LAYER_PX = 4_000_000;
-const MARKER_ATTR = "data-handwriting-embed-ink";
+const MARKER_ATTR = "data-justwrite-embed-ink";
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 /** Windows whose print swap is already wired; popouts each get their own. */
@@ -260,10 +260,10 @@ function usePrintVector(on: boolean): void {
 	sweepDisconnected();
 	for (const [root, path] of layers) {
 		const canvas = root.querySelector(
-			":scope > canvas.handwriting-embed-ink"
+			":scope > canvas.justwrite-embed-ink"
 		) as HTMLCanvasElement | null;
 		const existing = root.querySelector(
-			":scope > svg.handwriting-embed-ink"
+			":scope > svg.justwrite-embed-ink"
 		) as SVGSVGElement | null;
 		if (!on) {
 			existing?.remove();
@@ -276,7 +276,7 @@ function usePrintVector(on: boolean): void {
 		// createElementNS, not createEl: an <svg> built as an HTML element is
 		// an unknown tag that renders nothing.
 		const svg = existing ?? root.ownerDocument.createElementNS(SVG_NS, "svg");
-		svg.setAttribute("class", "handwriting-embed-ink");
+		svg.setAttribute("class", "justwrite-embed-ink");
 		svg.setAttribute("aria-hidden", "true");
 		svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
 		svg.setAttribute("width", `${w}`);
@@ -311,7 +311,7 @@ function inkPathEl(root: HTMLElement, run: InkSvgRun): SVGPathElement {
 function paint(root: HTMLElement, path: string, strokes: readonly InkStroke[]): void {
 	const marker = embedInkMarker(path, revisions.get(path) ?? 0);
 	let canvas = root.querySelector(
-		":scope > canvas.handwriting-embed-ink"
+		":scope > canvas.justwrite-embed-ink"
 	) as HTMLCanvasElement | null;
 	if (!embedInkNeedsPaint(root.getAttribute(MARKER_ATTR), marker, canvas !== null)) return;
 	root.setAttribute(MARKER_ATTR, marker);
@@ -326,7 +326,7 @@ function paint(root: HTMLElement, path: string, strokes: readonly InkStroke[]): 
 		root.setCssStyles({ position: "relative" });
 	}
 	if (!canvas) {
-		canvas = root.createEl("canvas", { cls: "handwriting-embed-ink" });
+		canvas = root.createEl("canvas", { cls: "justwrite-embed-ink" });
 	}
 	// The canvas is sized in DEVICE pixels and laid out in css pixels, so the
 	// strokes below can go on drawing in note units and come out sharp.

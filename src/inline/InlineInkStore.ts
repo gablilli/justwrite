@@ -272,7 +272,7 @@ export class InlineInkStore {
 	 * Is this note a Handwriting page, meaning it carries spatial state? True when the
 	 * session has strokes or an id for it, or the note's frontmatter already
 	 * carries a `handwriting-page-id` (cheap metadata read, no file I/O). Drives
-	 * presentation only (the `handwriting-page` class); never mutates anything.
+	 * presentation only (the `justwrite-page` class); never mutates anything.
 	 */
 	/** The page id the session knows for this note (post-load/claim), if any. */
 	pageIdOf(path: string): string | null {
@@ -631,7 +631,7 @@ export class InlineInkStore {
 		rec.duplicateLocked = true;
 		this.noteOnce(
 			rec,
-			`Handwriting: this note and "${otherPath}" carry the same handwriting-page-id, so they point at the same ink file. Ink on both is read-only until that is resolved. Delete the handwriting-page-id line from the copy (its next stroke gets a fresh id), or delete one of the notes.`
+			`Handwriting: this note and "${otherPath}" carry the same justwrite-page-id, so they point at the same ink file. Ink on both is read-only until that is resolved. Delete the justwrite-page-id line from the copy (its next stroke gets a fresh id), or delete one of the notes.`
 		);
 	}
 

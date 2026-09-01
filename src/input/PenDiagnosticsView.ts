@@ -6,7 +6,7 @@ import {
 	type PointerObservations,
 } from "../diag/PlatformCapabilities";
 
-export const HANDWRITING_DIAGNOSTICS_VIEW_TYPE = "handwriting-pen-diagnostics";
+export const HANDWRITING_DIAGNOSTICS_VIEW_TYPE = "justwrite-pen-diagnostics";
 
 interface LogEntry {
 	seq: number;
@@ -129,10 +129,10 @@ export class PenDiagnosticsView extends ItemView {
 	async onOpen(): Promise<void> {
 		const content = this.contentEl;
 		content.empty();
-		content.addClass("handwriting-diag");
+		content.addClass("justwrite-diag");
 
 		content.createEl("p", {
-			cls: "handwriting-diag-help",
+			cls: "justwrite-diag-help",
 			text:
 				"Do each gesture in the box below, and press Next test between them. " +
 				"When the script is finished, press Show JSON and then Copy. " +
@@ -140,7 +140,7 @@ export class PenDiagnosticsView extends ItemView {
 				"log are how you can tell it is recording.",
 		});
 
-		const controls = content.createDiv({ cls: "handwriting-diag-controls" });
+		const controls = content.createDiv({ cls: "justwrite-diag-controls" });
 		this.nextBtn = controls.createEl("button", { text: "Next test (1)", cls: "mod-cta" });
 		this.nextBtn.addEventListener("click", () => {
 			this.testIndex++;
@@ -172,11 +172,11 @@ export class PenDiagnosticsView extends ItemView {
 			);
 		});
 
-		this.captureEl = content.createDiv({ cls: "handwriting-diag-capture" });
+		this.captureEl = content.createDiv({ cls: "justwrite-diag-capture" });
 		this.captureEl.setText("Write / touch / hover here");
 
-		this.statsEl = content.createDiv({ cls: "handwriting-diag-stats" });
-		this.logEl = content.createDiv({ cls: "handwriting-diag-log" });
+		this.statsEl = content.createDiv({ cls: "justwrite-diag-stats" });
+		this.logEl = content.createDiv({ cls: "justwrite-diag-log" });
 
 		// The capture rect is cached instead of read per event. It is also
 		// refreshed on contact inside record(), which is what covers the case
@@ -283,7 +283,7 @@ export class PenDiagnosticsView extends ItemView {
 	}
 
 	private recordNote(text: string): void {
-		const row = this.logEl.createDiv({ cls: "handwriting-diag-row handwriting-diag-note", text });
+		const row = this.logEl.createDiv({ cls: "justwrite-diag-row justwrite-diag-note", text });
 		this.trimDom();
 		row.scrollIntoView({ block: "nearest" });
 	}
@@ -346,7 +346,7 @@ export class PenDiagnosticsView extends ItemView {
 		// Memory keeps every one of them for the export.
 		const isSpammy = type === "pointermove" || type === "pointerrawupdate";
 		if (!isSpammy) {
-			const row = this.logEl.createDiv({ cls: "handwriting-diag-row" });
+			const row = this.logEl.createDiv({ cls: "justwrite-diag-row" });
 			row.setText(
 				`#${entry.seq} ${type} ${entry.pointerType || "?"} id=${entry.pointerId} ` +
 					`btn=${entry.button}/${entry.buttons} p=${entry.pressure} ` +
@@ -368,7 +368,7 @@ export class PenDiagnosticsView extends ItemView {
 	private mark(label: string): void {
 		this.entries.push({ seq: this.seq++, type: "mark", label, t: Math.round(performance.now()) });
 		const row = this.logEl?.createDiv({
-			cls: "handwriting-diag-row handwriting-diag-mark",
+			cls: "justwrite-diag-row justwrite-diag-mark",
 			text: `---- ${label} ----`,
 		});
 		this.trimDom();

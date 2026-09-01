@@ -34,7 +34,7 @@
  * DOM-free by construction so the pairing is unit-tested.
  */
 
-export const GUARD_SUBTREE_CLASS = "handwriting-touch-guard";
+export const GUARD_SUBTREE_CLASS = "justwrite-touch-guard";
 
 export interface GuardStyleTarget {
 	setCssStyles(styles: { touchAction: string }): void;

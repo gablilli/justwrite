@@ -15,7 +15,7 @@ import { BBox, InkStroke } from "./Stroke";
  * array, so z-order survives bucket iteration.
  */
 
-/** World units per bucket. Strokes are handwriting-sized; 256 keeps the
+/** World units per bucket. Strokes are justwrite-sized; 256 keeps the
  * typical bucket at a handful of strokes without exploding bucket count. */
 export const BUCKET_WORLD = 256;
 

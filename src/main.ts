@@ -162,7 +162,7 @@ interface HandwritingSettings {
 	/**
 	 * Per-note override, keyed by file path (1.4). A note with no entry
 	 * here falls back to `paperStyle`. Keyed by path rather than the
-	 * handwriting-page-id frontmatter: ordinary notes carrying nothing but
+	 * justwrite-page-id frontmatter: ordinary notes carrying nothing but
 	 * inline ink have no such id, and paper is cosmetic enough that losing
 	 * the override across a rename is an acceptable trade for not forcing
 	 * every markdown note to grow frontmatter just to remember its ruling.
@@ -261,7 +261,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 		// gave the reader nothing they could act on or even look up.
 		this.store.onWriteError = (pageId, problem, preservedAs) => {
 			new Notice(
-				`Handwriting cannot save the ink on "${this.noteNameFor(pageId)}". It is still in this session and Handwriting keeps retrying. Check disk space and permissions.` +
+				`JustWrite cannot save the ink on "${this.noteNameFor(pageId)}". It is still in this session and JustWrite keeps retrying. Check disk space and permissions.` +
 					(preservedAs
 						? ` A version of this note's ink from another device is safe at ${preservedAs}.`
 						: "") +
@@ -273,7 +273,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 		// holds it back until the final rename), so both halves are true.
 		this.store.onConflict = (pageId, keptAs) => {
 			new Notice(
-				`Handwriting: the ink file for "${this.noteNameFor(pageId)}" was changed outside this session, by sync or another device. That version is kept as ${keptAs}. This session's ink is now saved.`,
+				`JustWrite: the ink file for "${this.noteNameFor(pageId)}" was changed outside this session, by sync or another device. That version is kept as ${keptAs}. This session's ink is now saved.`,
 				15000
 			);
 		};
@@ -281,7 +281,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 		// was complete and is now the main file; the corrupt bytes were kept.
 		this.store.onRecovered = (pageId, keptAs) => {
 			new Notice(
-				`Handwriting recovered the ink on "${this.noteNameFor(pageId)}" from an interrupted save. The unreadable file is kept as ${keptAs}.`,
+				`JustWrite recovered the ink on "${this.noteNameFor(pageId)}" from an interrupted save. The unreadable file is kept as ${keptAs}.`,
 				15000
 			);
 		};
@@ -317,7 +317,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 			},
 			claimId: async (path, proposedId) => {
 				const file = this.app.vault.getAbstractFileByPath(path);
-				if (!(file instanceof TFile)) throw new Error(`Handwriting: no file at ${path}`);
+				if (!(file instanceof TFile)) throw new Error(`JustWrite: no file at ${path}`);
 				let out: { pageId: string; futureVersion?: number } = { pageId: proposedId };
 				await this.app.vault.process(file, (data) => {
 					const r = claimMarkdown(data, proposedId);
@@ -459,7 +459,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 				setInlineLassoMode(false);
 				setInlineSpaceMode(false);
 				setInlinePanMode(false);
-				if (!stripQuiet()) new Notice("Handwriting: pen");
+				if (!stripQuiet()) new Notice("JustWrite: pen");
 			},
 		});
 		// The eraser used to need a pen with an eraser end. Plenty of pens do
@@ -482,7 +482,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 					markPenSeen();
 					refreshPenToolsAll();
 				}
-				new Notice(on ? "Handwriting: mouse draws (left button)" : "Handwriting: mouse is a mouse again");
+				new Notice(on ? "JustWrite: mouse draws (left button)" : "JustWrite: mouse is a mouse again");
 			},
 		});
 		this.addCommand({
@@ -494,7 +494,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 				this.settings.penTools = next;
 				runDetached(this.saveData(this.settings), "save the pen tools mode");
 				refreshPenToolsAll();
-				new Notice(`Handwriting: pen tools ${next}`);
+				new Notice(`JustWrite: pen tools ${next}`);
 			},
 		});
 		this.addCommand({
@@ -502,7 +502,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 			name: "Pen pressure: recalibrate",
 			callback: () => {
 				resetPressureCalibration();
-				new Notice("Handwriting: pressure relearns from your next strokes");
+				new Notice("JustWrite: pressure relearns from your next strokes");
 			},
 		});
 		this.addCommand({
@@ -511,14 +511,14 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 			callback: () => {
 				const file = this.app.workspace.getActiveFile();
 				if (!file) {
-					new Notice("Handwriting: open a note first");
+					new Notice("JustWrite: open a note first");
 					return;
 				}
 				const next = nextPaperStyle(this.paperStyleForFile(file));
 				this.settings.paperStyleByPath[file.path] = next;
 				this.refreshPaperForFile(file);
 				runDetached(this.saveData(this.settings), "save the paper style");
-				new Notice(`Handwriting: paper ${next} for this note`);
+				new Notice(`JustWrite: paper ${next} for this note`);
 			},
 		});
 		this.addCommand({
@@ -532,8 +532,8 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 				if (!stripQuiet()) {
 					new Notice(
 						on
-							? `Handwriting: eraser${armed ? " (mouse ink on)" : ""}`
-							: `Handwriting: ${getInlineTool()}`
+							? `JustWrite: eraser${armed ? " (mouse ink on)" : ""}`
+							: `JustWrite: ${getInlineTool()}`
 					);
 				}
 			},
@@ -551,8 +551,8 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 				if (!stripQuiet()) {
 					new Notice(
 						on
-							? `Handwriting: lasso (tip selects)${armed ? " (mouse ink on)" : ""}`
-							: `Handwriting: ${getInlineTool()}`
+							? `JustWrite: lasso (tip selects)${armed ? " (mouse ink on)" : ""}`
+							: `JustWrite: ${getInlineTool()}`
 					);
 				}
 			},
@@ -570,8 +570,8 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 				if (!stripQuiet()) {
 					new Notice(
 						on
-							? `Handwriting: insert space (tip shifts ink below)${armed ? " (mouse ink on)" : ""}`
-							: `Handwriting: ${getInlineTool()}`
+							? `JustWrite: insert space (tip shifts ink below)${armed ? " (mouse ink on)" : ""}`
+							: `JustWrite: ${getInlineTool()}`
 					);
 				}
 			},
@@ -589,8 +589,8 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 				if (!stripQuiet()) {
 					new Notice(
 						on
-							? `Handwriting: pan (tip drags the page)${armed ? " (mouse ink on)" : ""}`
-							: `Handwriting: ${getInlineTool()}`
+							? `JustWrite: pan (tip drags the page)${armed ? " (mouse ink on)" : ""}`
+							: `JustWrite: ${getInlineTool()}`
 					);
 				}
 			},
@@ -601,7 +601,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 			callback: () => {
 				const next = nextEraserSize(getEraserRadiusPx());
 				runDetached(this.setEraserSize(next.radiusPx, next.name), "save the eraser size", () =>
-					new Notice("Handwriting: the eraser size changed, but the setting could not be saved.")
+					new Notice("JustWrite: the eraser size changed, but the setting could not be saved.")
 				);
 			},
 		});
@@ -612,7 +612,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 				const on = !pressureSensitivityEnabled();
 				runDetached(this.applyPressureSensitivity(on), "save the pressure setting", () =>
 					new Notice(
-						"Handwriting: pressure sensitivity changed for this session, but the setting could not be saved."
+						"JustWrite: pressure sensitivity changed for this session, but the setting could not be saved."
 					)
 				);
 			},
@@ -625,7 +625,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 				name: `Ink size: ${step.name}`,
 				callback: () => {
 					runDetached(this.setInkSize(step.mult, step.name), "save the ink size", () =>
-						new Notice("Handwriting: the ink size changed, but the setting could not be saved.")
+						new Notice("JustWrite: the ink size changed, but the setting could not be saved.")
 					);
 				},
 			});
@@ -636,7 +636,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 			callback: () => {
 				const next = nextInkSize(getInkSizeMult(getInlineTool()));
 				runDetached(this.setInkSize(next.mult, next.name), "save the ink size", () =>
-					new Notice("Handwriting: the ink size changed, but the setting could not be saved.")
+					new Notice("JustWrite: the ink size changed, but the setting could not be saved.")
 				);
 			},
 		});
@@ -656,14 +656,14 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 						const choice = colorsFor(tool).find((c) => c.name === name);
 						if (!choice) {
 							new Notice(
-								`Handwriting: the ${tool} has no ${name}. Its colors are ${colorsFor(tool)
+								`JustWrite: the ${tool} has no ${name}. Its colors are ${colorsFor(tool)
 									.map((c) => c.name)
 									.join(", ")}.`
 							);
 							return;
 						}
 						runDetached(this.setInkColor(choice.hex, choice.name), "save the ink color", () =>
-							new Notice("Handwriting: the ink color changed, but the setting could not be saved.")
+							new Notice("JustWrite: the ink color changed, but the setting could not be saved.")
 						);
 					},
 				});
@@ -689,16 +689,16 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 				if (!checking) {
 					const svg = inkToSvg(inlineInk.strokes(file.path));
 					if (!svg) {
-						new Notice("Handwriting: no ink to export on this note.");
+						new Notice("JustWrite: no ink to export on this note.");
 						return true;
 					}
 					const out = normalizePath(file.path.replace(/\.md$/, "") + ".ink.svg");
 					runDetached(
 						this.app.vault.adapter.write(out, svg).then(() => {
-							new Notice(`Handwriting: exported ${out}`);
+							new Notice(`JustWrite: exported ${out}`);
 						}),
 						"export ink as svg",
-						() => new Notice("Handwriting: the SVG export could not be written.")
+						() => new Notice("JustWrite: the SVG export could not be written.")
 					);
 				}
 				return true;
@@ -716,7 +716,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 				if (!overlay) return false;
 				if (!checking) {
 					const n = overlay.deleteSelectedInk();
-					if (n === 0) new Notice("Handwriting: lasso some ink first");
+					if (n === 0) new Notice("JustWrite: lasso some ink first");
 				}
 				return true;
 			},
@@ -730,7 +730,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 				if (!overlay) return false;
 				if (!checking) {
 					const n = overlay.copySelectedInk();
-					new Notice(n > 0 ? `Handwriting: copied ${n} stroke(s)` : "Handwriting: lasso some ink first");
+					new Notice(n > 0 ? `JustWrite: copied ${n} stroke(s)` : "JustWrite: lasso some ink first");
 				}
 				return true;
 			},
@@ -744,7 +744,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 				if (!overlay) return false;
 				if (!checking) {
 					const n = overlay.cutSelectedInk();
-					new Notice(n > 0 ? `Handwriting: cut ${n} stroke(s)` : "Handwriting: lasso some ink first");
+					new Notice(n > 0 ? `JustWrite: cut ${n} stroke(s)` : "JustWrite: lasso some ink first");
 				}
 				return true;
 			},
@@ -760,10 +760,10 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 				if (!overlay) return false;
 				if (!checking) {
 					if (clipboardSize() === 0) {
-						new Notice("Handwriting: the ink clipboard is empty. Copy selected ink first.");
+						new Notice("JustWrite: the ink clipboard is empty. Copy selected ink first.");
 					} else {
 						const n = overlay.pasteInkHere();
-						new Notice(`Handwriting: pasted ${n} stroke(s)`);
+						new Notice(`JustWrite: pasted ${n} stroke(s)`);
 					}
 				}
 				return true;
@@ -779,7 +779,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 				if (!file || file.extension !== "md") return false;
 				if (!checking) {
 					if (!inlineInk.hasInk(file.path)) {
-						new Notice("Handwriting: no ink on this note.");
+						new Notice("JustWrite: no ink on this note.");
 					} else {
 						this.confirmDeleteAllInk(file.path);
 					}
@@ -794,7 +794,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 				const tool = getInlineTool();
 				const next = nextInkColor(tool, getInkColorHex(tool));
 				runDetached(this.setInkColor(next.hex, next.name), "save the ink color", () =>
-					new Notice("Handwriting: the ink color changed, but the setting could not be saved.")
+					new Notice("JustWrite: the ink color changed, but the setting could not be saved.")
 				);
 			},
 		});
@@ -807,7 +807,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 				setInlineLassoMode(false);
 				setInlineSpaceMode(false);
 				setInlinePanMode(false);
-				if (!stripQuiet()) new Notice("Handwriting: highlighter");
+				if (!stripQuiet()) new Notice("JustWrite: highlighter");
 			},
 		});
 		this.addCommand({
@@ -816,7 +816,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 			callback: () => {
 				const next = getInlineTool() === "pen" ? "highlighter" : "pen";
 				setInlineTool(next);
-				new Notice(`Handwriting: ${next}`);
+				new Notice(`JustWrite: ${next}`);
 			},
 		});
 		// The pen lifecycle trace. To capture one failing stroke: turn
@@ -826,14 +826,14 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 			id: "copy-inline-pen-trace",
 			name: "Diagnostics: show pen trace",
 			callback: () => {
-				showDiagnosticText(this.app, "Handwriting pen trace", formatInlinePenTrace());
+				showDiagnosticText(this.app, "JustWrite pen trace", formatInlinePenTrace());
 			},
 		});
 		this.addCommand({
 			id: "show-ink-metrics",
 			name: "Diagnostics: show ink metrics",
 			callback: () => {
-				showDiagnosticText(this.app, "Handwriting ink metrics", copyInlineInkMetrics());
+				showDiagnosticText(this.app, "JustWrite ink metrics", copyInlineInkMetrics());
 			},
 		});
 		this.addCommand({
@@ -841,14 +841,14 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 			name: "Diagnostics: clear pen trace",
 			callback: () => {
 				clearInlinePenTrace();
-				new Notice("Handwriting: pen trace cleared");
+				new Notice("JustWrite: pen trace cleared");
 			},
 		});
 		this.addCommand({
 			id: "copy-inline-zoom-report",
 			name: "Diagnostics: show zoom report",
 			callback: () => {
-				showDiagnosticText(this.app, "Handwriting zoom report", copyInlineZoomReport());
+				showDiagnosticText(this.app, "JustWrite zoom report", copyInlineZoomReport());
 			},
 		});
 		// Dead-region diagnosis: what the page has under a client point, and
@@ -860,14 +860,14 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 				const on = !isHitProbeEnabled();
 				setHitProbeEnabled(on);
 				if (on) clearHitProbe();
-				new Notice(`Handwriting: pointer hit probe ${on ? "on. Hover, then touch down." : "off"}`);
+				new Notice(`JustWrite: pointer hit probe ${on ? "on. Hover, then touch down." : "off"}`);
 			},
 		});
 		this.addCommand({
 			id: "copy-inline-hit-report",
 			name: "Diagnostics: show pointer hit report",
 			callback: () => {
-				showDiagnosticText(this.app, "Handwriting pointer hit report", formatHitReport());
+				showDiagnosticText(this.app, "JustWrite pointer hit report", formatHitReport());
 			},
 		});
 		this.addCommand({
@@ -875,7 +875,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 			name: "Diagnostics: clear pointer hit probe",
 			callback: () => {
 				clearHitProbe();
-				new Notice("Handwriting: pointer hit probe cleared");
+				new Notice("JustWrite: pointer hit probe cleared");
 			},
 		});
 		// Touchpad dead-zone diagnosis: the wheel/scroll/repaint pipeline,
@@ -888,7 +888,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 			id: "copy-region-census",
 			name: "Diagnostics: show region census",
 			callback: () => {
-				showDiagnosticText(this.app, "Handwriting region census", copyRegionCensus());
+				showDiagnosticText(this.app, "JustWrite region census", copyRegionCensus());
 			},
 		});
 		this.addCommand({
@@ -897,12 +897,12 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 			callback: () => {
 				runDetached(
 					copyPresentationReport().then((report) =>
-						showDiagnosticText(this.app, "Handwriting presentation capture", report)
+						showDiagnosticText(this.app, "JustWrite presentation capture", report)
 					),
 					"prepare a presentation capture",
 					() =>
 						new Notice(
-							"Handwriting: could not prepare the presentation capture. See the developer console."
+							"JustWrite: could not prepare the presentation capture. See the developer console."
 						)
 				);
 			},
@@ -916,14 +916,14 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 			callback: () => {
 				const on = !diagnosticsEnabled();
 				setDiagnosticsEnabled(on);
-				new Notice(`Handwriting: diagnostics ${on ? "on, traces recording" : "off"}`);
+				new Notice(`JustWrite: diagnostics ${on ? "on, traces recording" : "off"}`);
 			},
 		});
 		this.addCommand({
 			id: "copy-inline-scroll-trace",
 			name: "Diagnostics: show scroll trace",
 			callback: () => {
-				showDiagnosticText(this.app, "Handwriting scroll trace", formatScrollProbe());
+				showDiagnosticText(this.app, "JustWrite scroll trace", formatScrollProbe());
 			},
 		});
 		this.addCommand({
@@ -931,7 +931,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 			name: "Diagnostics: clear scroll trace",
 			callback: () => {
 				clearScrollProbe();
-				new Notice("Handwriting: scroll trace cleared");
+				new Notice("JustWrite: scroll trace cleared");
 			},
 		});
 
@@ -961,7 +961,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 				if (!file || file.extension !== "md") return false;
 				if (!checking) {
 					runDetached(this.openAsHandwriting(file), `open ${file.path} on the canvas`, () =>
-						new Notice("Handwriting: could not open this note on the canvas.")
+						new Notice("JustWrite: could not open this note on the canvas.")
 					);
 				}
 				return true;
@@ -986,7 +986,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 							state: { file: file?.path, mode: "source" },
 						}),
 						"open a canvas page as Markdown",
-						() => new Notice("Handwriting: could not open this page as Markdown.")
+						() => new Notice("JustWrite: could not open this page as Markdown.")
 					);
 				}
 				return true;
@@ -1051,12 +1051,12 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 		// (word count, backlink/property counts, plugin items). On a Handwriting
 		// page it sits ON TOP of the writing surface and the horizontal
 		// scrollbar. There is no native setting to dodge or hide it, so:
-		// while the ACTIVE note is a Handwriting page, `handwriting-active-page` on
+		// while the ACTIVE note is a Handwriting page, `justwrite-active-page` on
 		// <body> hides the strip (scoped CSS); every ordinary note keeps it.
 		const updateStatusBarClass = () => {
 			const file = this.app.workspace.getActiveFile();
 			document.body.classList.toggle(
-				"handwriting-active-page",
+				"justwrite-active-page",
 				!!file && file.extension === "md" && inlineInk.isHandwritingPage(file.path)
 			);
 		};
@@ -1280,7 +1280,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 			if (cam) this.settings.cameras[newId] = { ...cam };
 			this.persistOwners();
 			new Notice(
-				`Handwriting: "${file.basename}" was a copy of another Handwriting note. It now has its own ink identity` +
+				`JustWrite: "${file.basename}" was a copy of another Handwriting note. It now has its own ink identity` +
 					(cloned === "cloned"
 						? " and an independent copy of the ink."
 						: cloned === "unreadable"
@@ -1310,7 +1310,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 		repaintAllInkOverlays();
 		await this.saveData(this.settings);
 		new Notice(
-			on ? "Handwriting: pressure sensitivity on" : "Handwriting: pressure sensitivity off"
+			on ? "JustWrite: pressure sensitivity on" : "JustWrite: pressure sensitivity off"
 		);
 	}
 
@@ -1318,7 +1318,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 		const tool = getInlineTool();
 		this.settings.inkColors[tool] = setInkColorHex(tool, hex);
 		await this.saveData(this.settings);
-		new Notice(`Handwriting: ${tool} ${name}`);
+		new Notice(`JustWrite: ${tool} ${name}`);
 	}
 
 	private async setInkSize(mult: number, name: string): Promise<void> {
@@ -1326,14 +1326,14 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 		setInkSizeMult(tool, mult);
 		this.settings.inkSizes[tool] = clampInkSize(mult);
 		await this.saveData(this.settings);
-		new Notice(`Handwriting: ${tool} size ${name}`);
+		new Notice(`JustWrite: ${tool} size ${name}`);
 	}
 
 	private async setEraserSize(radiusPx: number, name: string): Promise<void> {
 		setEraserRadiusPx(radiusPx);
 		this.settings.eraserRadiusPx = clampEraserRadius(radiusPx);
 		await this.saveData(this.settings);
-		new Notice(`Handwriting: eraser ${name}`);
+		new Notice(`JustWrite: eraser ${name}`);
 	}
 
 	/** "Delete all ink": confirm first. The count in the dialog is live. */
@@ -1362,21 +1362,21 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 			} catch (err) {
 				console.error("[handwriting] delete-all-ink backup failed", err);
 				new Notice(
-					"Handwriting: could not copy this note's ink to the trash (disk error). Nothing was deleted."
+					"JustWrite: could not copy this note's ink to the trash (disk error). Nothing was deleted."
 				);
 				return;
 			}
 		}
 		const n = deleteAllInkOn(path);
 		if (n === null) {
-			new Notice("Handwriting: open the note in editing view to delete its ink.");
+			new Notice("JustWrite: open the note in editing view to delete its ink.");
 			return;
 		}
 		const what = n === 1 ? "1 stroke" : `${n} strokes`;
 		new Notice(
 			kept
-				? `Handwriting: removed ${what}. Undo restores them; a copy is kept in ${kept}.`
-				: `Handwriting: removed ${what}. Undo restores them.`
+				? `JustWrite: removed ${what}. Undo restores them; a copy is kept in ${kept}.`
+				: `JustWrite: removed ${what}. Undo restores them.`
 		);
 	}
 
@@ -1431,11 +1431,11 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 		// styles at all, just removing what it already put on the DOM.
 		this.app.workspace.iterateAllLeaves((leaf) => {
 			leaf.view.containerEl.classList.remove(
-				"handwriting-paper-lines",
-				"handwriting-paper-grid"
+				"justwrite-paper-lines",
+				"justwrite-paper-grid"
 			);
 		});
-		document.body.classList.remove("handwriting-active-page");
+		document.body.classList.remove("justwrite-active-page");
 		destroyProbeMarkers();
 		// The print swap arms itself once per window and the guard is a WeakSet
 		// in module scope, which a reload replaces - leaving the previous pair
@@ -1490,7 +1490,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 
 	private async newPage(): Promise<void> {
 		const folder = this.app.workspace.getActiveFile()?.parent?.path ?? "";
-		const base = "Handwriting page";
+		const base = "JustWrite page";
 		let name = base;
 		let n = 2;
 		while (await this.app.vault.adapter.exists(this.pathFor(folder, name))) {
@@ -1511,7 +1511,7 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 			await this.app.workspace.revealLeaf(leaf);
 		} catch (err) {
 			console.error("[handwriting] could not create page", err);
-			new Notice("Handwriting: could not create the page. See the developer console.");
+			new Notice("JustWrite: could not create the page. See the developer console.");
 		}
 	}
 
@@ -1644,13 +1644,13 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 	 * document one. It is a document one now - each note remembers its own
 	 * ruling - so the class has to live on each LEAF's own view container
 	 * instead, where `styles.css`'s existing descendant selector still
-	 * finds it (`.handwriting-paper-lines .markdown-source-view
+	 * finds it (`.justwrite-paper-lines .markdown-source-view
 	 * .cm-scroller`, no longer anchored to `body`).
 	 */
 	private applyPaperToLeaf(leaf: WorkspaceLeaf): void {
 		const view = leaf.view;
 		if (!(view instanceof MarkdownView)) return;
-		view.containerEl.classList.remove("handwriting-paper-lines", "handwriting-paper-grid");
+		view.containerEl.classList.remove("justwrite-paper-lines", "justwrite-paper-grid");
 		const cls = paperClass(this.paperStyleForFile(view.file));
 		if (cls) view.containerEl.classList.add(cls);
 	}
@@ -1707,17 +1707,17 @@ export default class HandwritingPlugin extends Plugin implements HandwritingHost
 		);
 		if (outcome.kind === "unchanged") return;
 		if (outcome.kind === "busy") {
-			new Notice("Handwriting: ink is still saving, so the folder was not changed. Try again.");
+			new Notice("JustWrite: ink is still saving, so the folder was not changed. Try again.");
 			return;
 		}
 		if (outcome.kind === "unsupported") {
-			new Notice("Handwriting: this vault cannot list files, so the ink was not moved.");
+			new Notice("JustWrite: this vault cannot list files, so the ink was not moved.");
 			return;
 		}
 		const { moved, skipped } = outcome.result;
 		const left = skipped > 0 ? `, ${skipped} left behind (name already taken)` : "";
 		new Notice(
-			`Handwriting: ink folder is now "${next}". Moved ${moved} file(s)${left}.` +
+			`JustWrite: ink folder is now "${next}". Moved ${moved} file(s)${left}.` +
 				(inkFolderSyncs(next) ? "" : " This folder is hidden and will not sync.")
 		);
 	}
@@ -1923,7 +1923,7 @@ class HandwritingSettingTab extends PluginSettingTab {
 							"move the ink folder",
 							() => {
 								btn.setDisabled(false);
-								new Notice("Handwriting: the ink folder could not be changed.");
+								new Notice("JustWrite: the ink folder could not be changed.");
 							}
 						);
 					})
@@ -2000,6 +2000,22 @@ class HandwritingSettingTab extends PluginSettingTab {
 				})
 			);
 		new Setting(containerEl)
+			.setName("Stroke smoothing")
+			.setDesc("Smooths the drawn line geometry for a cleaner look. Turn off to see the raw digitiser path. Default on.")
+			.addToggle((t) =>
+				t.setValue(this.plugin.settings.smoothInk).onChange((on) => {
+					this.plugin.settings.smoothInk = on;
+					this.plugin.app.workspace
+						.getLeavesOfType(HANDWRITING_PAGE_VIEW_TYPE)
+						.forEach((leaf) => {
+							if (leaf.view instanceof HandwritingPageView) {
+								leaf.view.setSmoothing(on);
+							}
+						});
+					this.plugin.saveSettingsNow();
+				})
+			);
+		new Setting(containerEl)
 			.setName("Shape snap")
 			.setDesc("Hold the pen still after drawing a shape. Default on.")
 			.addToggle((t) =>
@@ -2038,8 +2054,8 @@ class HandwritingSettingTab extends PluginSettingTab {
 		// One line at the bottom, after every setting, because that is where
 		// someone who has been using the thing ends up - not where someone
 		// deciding whether to install it starts.
-		const support = containerEl.createEl("p", { cls: "handwriting-support" });
-		support.appendText("Handwriting is free. i'm still working on it almost every night. ");
+		const support = containerEl.createEl("p", { cls: "justwrite-support" });
+		support.appendText("JustWrite is free. i'm still working on it almost every night. ");
 		support.createEl("a", {
 			text: "Buy me a coffee :)",
 			href: "https://ko-fi.com/ellimistafk",

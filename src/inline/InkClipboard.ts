@@ -43,7 +43,7 @@ let token: string | null = null;
  * pastes as text. A clipboard manager keeps the line in its history, so
  * pasting that entry again pastes the ink again.
  */
-const MARKER_PREFIX = "handwriting-ink/v1 ";
+const MARKER_PREFIX = "justwrite-ink/v1 ";
 
 /** The marker for the ink now held, or null when the clipboard is empty. */
 export function inkClipboardMarker(): string | null {

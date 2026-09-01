@@ -12,7 +12,7 @@
 export const MIN_CURSOR_VISUAL_PX = 6;
 const PEN_COMPAT_MOUSE_WINDOW_MS = 120;
 const PEN_COMPAT_MOUSE_DISTANCE_PX = 4;
-export const PEN_HOVER_CLASS = "handwriting-pen-hover";
+export const PEN_HOVER_CLASS = "justwrite-pen-hover";
 
 export interface PenCursorLayoutInput {
 	x: number;
@@ -67,4 +67,4 @@ export function isPenCompatMouseMove(input: {
  * Marks the hover reticle as showing an eraser rather than a nib: an outline
  * at the erase radius instead of a filled dot at the ink width.
  */
-export const ERASER_CURSOR_CLASS = "handwriting-pen-hover-eraser";
+export const ERASER_CURSOR_CLASS = "justwrite-pen-hover-eraser";

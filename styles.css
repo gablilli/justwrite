@@ -1,11 +1,11 @@
 /* Handwriting: pen ink on ordinary Markdown notes in Obsidian */
 
-.handwriting-content.view-content {
+.justwrite-content.view-content {
 	padding: 0;
 	overflow: hidden;
 }
 
-.handwriting-root {
+.justwrite-root {
 	position: absolute;
 	inset: 0;
 	overflow: hidden;
@@ -17,17 +17,17 @@
 	cursor: crosshair;
 }
 
-.handwriting-paper,
-.handwriting-committed,
-.handwriting-wet,
-.handwriting-tail,
-.handwriting-highlight {
+.justwrite-paper,
+.justwrite-committed,
+.justwrite-wet,
+.justwrite-tail,
+.justwrite-highlight {
 	position: absolute;
 	inset: 0;
 	pointer-events: none;
 }
 
-.handwriting-paper {
+.justwrite-paper {
 	background-color: transparent;
 }
 
@@ -36,7 +36,7 @@
  * whole layer. Painting translucent ink instead would double-blend every
  * overlap into a dark seam.
  */
-.handwriting-highlight {
+.justwrite-highlight {
 	opacity: 0.35;
 }
 
@@ -46,7 +46,7 @@
  * Same single-transform trick as the text layer: one composited change per
  * camera move, and pictures scale with the world for free.
  */
-.handwriting-images {
+.justwrite-images {
 	position: absolute;
 	inset: 0;
 	transform-origin: 0 0;
@@ -54,14 +54,14 @@
 	will-change: transform;
 }
 
-.handwriting-image {
+.justwrite-image {
 	position: absolute;
 	pointer-events: none;
 	overflow: hidden;
 	border-radius: 2px;
 }
 
-.handwriting-image img {
+.justwrite-image img {
 	width: 100%;
 	height: 100%;
 	object-fit: fill;
@@ -70,7 +70,7 @@
 }
 
 /* The attachment could not be resolved. Show the hole, do not hide it. */
-.handwriting-image.is-missing {
+.justwrite-image.is-missing {
 	border: 1px dashed var(--text-error);
 	opacity: 0.6;
 }
@@ -82,7 +82,7 @@
  * single composited change, not fifty layout writes. Boxes are positioned in
  * world units inside it.
  */
-.handwriting-objects {
+.justwrite-objects {
 	position: absolute;
 	inset: 0;
 	transform-origin: 0 0;
@@ -90,7 +90,7 @@
 	will-change: transform;
 }
 
-.handwriting-box {
+.justwrite-box {
 	position: absolute;
 	pointer-events: none;
 	padding: 2px 4px;
@@ -101,24 +101,24 @@
 	line-height: 1.5;
 }
 
-.handwriting-box.is-editing {
+.justwrite-box.is-editing {
 	border-color: var(--background-modifier-border);
 	background: var(--background-primary);
 }
 
-.handwriting-box-content > :first-child {
+.justwrite-box-content > :first-child {
 	margin-top: 0;
 }
 
-.handwriting-box-content > :last-child {
+.justwrite-box-content > :last-child {
 	margin-bottom: 0;
 }
 
-.handwriting-box-content.is-empty {
+.justwrite-box-content.is-empty {
 	min-height: 1.5em;
 }
 
-.handwriting-box-editor {
+.justwrite-box-editor {
 	display: block;
 	width: 100%;
 	min-height: 1.5em;
@@ -139,7 +139,7 @@
 
 /* Small, quiet grab point. The box body stays pointer-transparent so ink
    can cross typed text. */
-.handwriting-box-handle {
+.justwrite-box-handle {
 	position: absolute;
 	left: -16px;
 	top: -2px;
@@ -153,13 +153,13 @@
 	touch-action: none;
 }
 
-.handwriting-box-handle:hover {
+.justwrite-box-handle:hover {
 	opacity: 0.8;
 }
 
 /* ---- interaction affordances ---- */
 
-.handwriting-caret {
+.justwrite-caret {
 	position: absolute;
 	left: 0;
 	top: 0;
@@ -168,17 +168,17 @@
 	transform-origin: 0 0;
 	background: var(--text-accent);
 	pointer-events: none;
-	animation: handwriting-blink 1s steps(2, start) infinite;
+	animation: justwrite-blink 1s steps(2, start) infinite;
 }
 
-@keyframes handwriting-blink {
+@keyframes justwrite-blink {
 	to {
 		visibility: hidden;
 	}
 }
 
-.handwriting-pen-cursor,
-.handwriting-eraser-cursor {
+.justwrite-pen-cursor,
+.justwrite-eraser-cursor {
 	position: absolute;
 	left: 0;
 	top: 0;
@@ -187,7 +187,7 @@
 	pointer-events: none;
 }
 
-.handwriting-pen-cursor {
+.justwrite-pen-cursor {
 	box-sizing: border-box;
 	/* Page-coloured ring separates the dot from whatever is under it, then a
 	   dark ring outside that so the whole thing reads on any background. The
@@ -206,7 +206,7 @@
  */
 /* Lasso mode at the nib: a dashed ring, distinct from nib dot and eraser
    outline, so the mode is visible before the tip commits. */
-.handwriting-pen-cursor.handwriting-pen-hover-lasso {
+.justwrite-pen-cursor.justwrite-pen-hover-lasso {
 	border: 1.5px dashed var(--text-accent);
 	background-color: transparent;
 	box-shadow: 0 0 0 1px var(--background-primary);
@@ -215,7 +215,7 @@
 
 /* Insert-space mode at the nib: the divider in miniature, so the tip shows
    the seam it will plant instead of a nib dot that would say "pen". */
-.handwriting-pen-cursor.handwriting-pen-hover-space {
+.justwrite-pen-cursor.justwrite-pen-hover-space {
 	border: 0;
 	border-top: 1.5px dashed var(--text-accent);
 	border-radius: 0;
@@ -226,7 +226,7 @@
 /* Strip grouping: modes (pick one) | selection actions | history. A hairline
    rather than a gap, so the row does not grow on a phone where it already
    wraps. Height comes from the button box, not a fixed number. */
-.handwriting-mobile-tools-divider {
+.justwrite-mobile-tools-divider {
 	align-self: stretch;
 	width: 1px;
 	margin: 4px 3px;
@@ -236,26 +236,26 @@
 
 /* Pan mode at the nib: the one SOLID ring, so "grab the page" never reads
    as one of the dashed marking tools. */
-.handwriting-pen-cursor.handwriting-pen-hover-pan {
+.justwrite-pen-cursor.justwrite-pen-hover-pan {
 	border: 1.5px solid var(--text-accent);
 	background-color: transparent;
 	box-shadow: 0 0 0 1px var(--background-primary);
 	opacity: 0.9;
 }
 
-.handwriting-pen-cursor.handwriting-pen-hover-eraser {
+.justwrite-pen-cursor.justwrite-pen-hover-eraser {
 	border: 1.5px dashed var(--text-normal);
 	background-color: transparent;
 	box-shadow: 0 0 0 1px var(--background-primary);
 	opacity: 0.9;
 }
 
-.cm-scroller.handwriting-pen-hover,
-.cm-scroller.handwriting-pen-hover * {
+.cm-scroller.justwrite-pen-hover,
+.cm-scroller.justwrite-pen-hover * {
 	cursor: none;
 }
 
-.handwriting-eraser-cursor {
+.justwrite-eraser-cursor {
 	box-sizing: border-box;
 	border: 1.5px solid var(--text-normal);
 	/* Second ring in the page colour, so the outline stays readable over ink,
@@ -270,13 +270,13 @@
    a pointer: the rendered page is the editor's problem, this is a picture. */
 /* The one support line, at the foot of the settings tab. Muted and small:
    it is a fact someone can act on, not a banner. */
-.handwriting-support {
+.justwrite-support {
 	margin-top: 2em;
 	font-size: var(--font-ui-smaller);
 	color: var(--text-muted);
 }
 
-.handwriting-embed-ink {
+.justwrite-embed-ink {
 	position: absolute;
 	left: 0;
 	top: 0;
@@ -294,7 +294,7 @@
  * window decal. 28px pitch, the border color at 1px so it stays quiet under
  * ink in both themes.
  */
-.handwriting-paper-lines .markdown-source-view .cm-scroller {
+.justwrite-paper-lines .markdown-source-view .cm-scroller {
 	background-image: repeating-linear-gradient(
 		to bottom,
 		transparent,
@@ -305,7 +305,7 @@
 	background-attachment: local;
 }
 
-.handwriting-paper-grid .markdown-source-view .cm-scroller {
+.justwrite-paper-grid .markdown-source-view .cm-scroller {
 	background-image:
 		repeating-linear-gradient(
 			to bottom,
@@ -328,41 +328,41 @@
    control in two sizes, so one class positions both. Top-right is the default
    and the historical position - the writing palm owns the bottom of the glass,
    which is why a bottom corner is a choice rather than the default. */
-.handwriting-mobile-tools.handwriting-corner-top-right,
-.handwriting-pen-pill.handwriting-corner-top-right {
+.justwrite-mobile-tools.justwrite-corner-top-right,
+.justwrite-pen-pill.justwrite-corner-top-right {
 	top: 8px;
 	right: 8px;
 }
 
-.handwriting-mobile-tools.handwriting-corner-top-left,
-.handwriting-pen-pill.handwriting-corner-top-left {
+.justwrite-mobile-tools.justwrite-corner-top-left,
+.justwrite-pen-pill.justwrite-corner-top-left {
 	top: 8px;
 	left: 8px;
 }
 
 /* Centered on an edge rather than a corner: left 50% + translateX(-50%)
    keeps the strip centered as it wraps/grows, without knowing its width. */
-.handwriting-mobile-tools.handwriting-corner-top-center,
-.handwriting-pen-pill.handwriting-corner-top-center {
+.justwrite-mobile-tools.justwrite-corner-top-center,
+.justwrite-pen-pill.justwrite-corner-top-center {
 	top: 8px;
 	left: 50%;
 	transform: translateX(-50%);
 }
 
-.handwriting-mobile-tools.handwriting-corner-bottom-right,
-.handwriting-pen-pill.handwriting-corner-bottom-right {
+.justwrite-mobile-tools.justwrite-corner-bottom-right,
+.justwrite-pen-pill.justwrite-corner-bottom-right {
 	bottom: 8px;
 	right: 8px;
 }
 
-.handwriting-mobile-tools.handwriting-corner-bottom-left,
-.handwriting-pen-pill.handwriting-corner-bottom-left {
+.justwrite-mobile-tools.justwrite-corner-bottom-left,
+.justwrite-pen-pill.justwrite-corner-bottom-left {
 	bottom: 8px;
 	left: 8px;
 }
 
-.handwriting-mobile-tools.handwriting-corner-bottom-center,
-.handwriting-pen-pill.handwriting-corner-bottom-center {
+.justwrite-mobile-tools.justwrite-corner-bottom-center,
+.justwrite-pen-pill.justwrite-corner-bottom-center {
 	bottom: 8px;
 	left: 50%;
 	transform: translateX(-50%);
@@ -376,7 +376,7 @@
  * owns the bottom of the glass. 40px targets per the touch guidelines;
  * touch-action: manipulation kills the double-tap zoom delay on the buttons.
  */
-.handwriting-mobile-tools {
+.justwrite-mobile-tools {
 	position: absolute;
 	z-index: 12;
 	/* Own compositor layer, isolated paints: the strip floats OVER the
@@ -405,7 +405,7 @@
 }
 
 /* Desktop trims the chrome; mobile keeps 40px touch targets. */
-.handwriting-mobile-tool {
+.justwrite-mobile-tool {
 	width: 32px;
 	height: 32px;
 	display: flex;
@@ -428,13 +428,13 @@
  * release day. Explicit minimums make that failure impossible. The font
  * rules cover the glyph-initial fallback path.
  */
-.handwriting-mobile-tool {
+.justwrite-mobile-tool {
 	font-size: 15px;
 	font-weight: 600;
 }
 
-.handwriting-mobile-tool .svg-icon,
-.handwriting-pen-pill .svg-icon {
+.justwrite-mobile-tool .svg-icon,
+.justwrite-pen-pill .svg-icon {
 	width: var(--icon-size, 18px);
 	height: var(--icon-size, 18px);
 	min-width: 18px;
@@ -442,13 +442,13 @@
 	opacity: 1;
 }
 
-.handwriting-mobile-tool.is-active {
+.justwrite-mobile-tool.is-active {
 	background: var(--interactive-accent);
 	color: var(--text-on-accent);
 }
 
 /* Nothing to undo (or redo): the button says so instead of lying. */
-.handwriting-mobile-tool.is-disabled {
+.justwrite-mobile-tool.is-disabled {
 	opacity: 0.35;
 }
 
@@ -457,7 +457,7 @@
    that predate vertical writing-mode on range inputs), with a live value
    readout underneath - on glass without hover there is no other feedback.
    Positioned per-show in refresh(), wrap-safe. */
-.handwriting-slider-pop {
+.justwrite-slider-pop {
 	display: none;
 	position: absolute;
 	will-change: transform;
@@ -476,7 +476,7 @@
 	opacity: 0.92;
 }
 
-.handwriting-slider-pop.is-showing {
+.justwrite-slider-pop.is-showing {
 	display: flex;
 }
 
@@ -488,9 +488,9 @@
  * Flip the hang direction to open upward whenever the strip is parked on
  * a bottom corner, where there is room to show it.
  */
-.handwriting-mobile-tools.handwriting-corner-bottom-right .handwriting-slider-pop,
-.handwriting-mobile-tools.handwriting-corner-bottom-left .handwriting-slider-pop,
-.handwriting-mobile-tools.handwriting-corner-bottom-center .handwriting-slider-pop {
+.justwrite-mobile-tools.justwrite-corner-bottom-right .justwrite-slider-pop,
+.justwrite-mobile-tools.justwrite-corner-bottom-left .justwrite-slider-pop,
+.justwrite-mobile-tools.justwrite-corner-bottom-center .justwrite-slider-pop {
 	top: auto;
 	bottom: 100%;
 	margin-top: 0;
@@ -506,13 +506,13 @@
  * renders identically on every engine ever shipped, and pointer hit-testing
  * follows the transform natively. Right end points UP, so up = bigger.
  */
-.handwriting-slider-slot {
+.justwrite-slider-slot {
 	position: relative;
 	width: 28px;
 	height: 104px;
 }
 
-.handwriting-slider-pop .handwriting-eraser-slider {
+.justwrite-slider-pop .justwrite-eraser-slider {
 	position: absolute;
 	left: 50%;
 	top: 50%;
@@ -529,13 +529,13 @@
 }
 
 /* Stroke | Reticle chips at the top of the eraser's pop. */
-.handwriting-mode-chips {
+.justwrite-mode-chips {
 	display: flex;
 	gap: 4px;
 	padding: 2px 2px 0;
 }
 
-.handwriting-mode-chip {
+.justwrite-mode-chip {
 	font-size: 10px;
 	line-height: 1.4;
 	padding: 2px 8px;
@@ -547,15 +547,15 @@
 	cursor: pointer;
 }
 
-.handwriting-mode-chip.is-current {
+.justwrite-mode-chip.is-current {
 	color: var(--text-on-accent);
 	background: var(--interactive-accent);
 	border-color: var(--interactive-accent);
 }
 
-/* Color swatches: fixed grid inside .handwriting-tool-panel (below). */
+/* Color swatches: fixed grid inside .justwrite-tool-panel (below). */
 
-.handwriting-color-swatch {
+.justwrite-color-swatch {
 	width: 22px;
 	height: 22px;
 	min-width: 22px;
@@ -571,7 +571,7 @@
 	/* No border/background/border-radius here on purpose (2026-09-01):
 	   this element is now just a hit target, sized generously enough for
 	   a fingertip but otherwise invisible. The visible circle is the
-	   nested .handwriting-color-swatch-dot span below - see the comment
+	   nested .justwrite-color-swatch-dot span below - see the comment
 	   at its creation in MobileTools.ts for why the split exists. Even if
 	   iPadOS Safari still mis-sizes THIS box as a grid item / form
 	   control, nothing about its shape is drawn, so there is nothing left
@@ -587,7 +587,7 @@
 	justify-content: center;
 }
 
-.handwriting-color-swatch-dot {
+.justwrite-color-swatch-dot {
 	width: 22px;
 	height: 22px;
 	min-width: 22px;
@@ -601,11 +601,11 @@
 	pointer-events: none;
 }
 
-.handwriting-color-swatch.is-current .handwriting-color-swatch-dot {
+.justwrite-color-swatch.is-current .justwrite-color-swatch-dot {
 	box-shadow: 0 0 0 2px var(--background-secondary), 0 0 0 3.5px var(--interactive-accent);
 }
 
-.handwriting-slider-val {
+.justwrite-slider-val {
 	font-size: 11px;
 	font-variant-numeric: tabular-nums;
 	color: var(--text-muted);
@@ -618,32 +618,32 @@
  * for anything the palette does not offer. Wider than the plain slider pop
  * because it is doing three jobs instead of one.
  */
-.handwriting-tool-panel {
+.justwrite-tool-panel {
 	width: 172px;
 	align-items: stretch;
 }
 
-.handwriting-hslider-row {
+.justwrite-hslider-row {
 	display: flex;
 	align-items: center;
 	gap: 8px;
 	padding: 2px 6px 0;
 }
 
-.handwriting-hslider {
+.justwrite-hslider {
 	flex: 1 1 auto;
 	width: auto;
 	margin: 0;
 	touch-action: manipulation;
 }
 
-.handwriting-tool-panel .handwriting-slider-val {
+.justwrite-tool-panel .justwrite-slider-val {
 	flex: none;
 	min-width: 34px;
 	text-align: right;
 }
 
-.handwriting-tool-panel-divider {
+.justwrite-tool-panel-divider {
 	height: 1px;
 	margin: 2px 6px;
 	background: var(--background-modifier-border);
@@ -652,7 +652,7 @@
 /* Same grid as the old standalone palette pop, just nested inside the
    panel now rather than living in its own pop. Fixed swatch size + centered
    grid cells means the swatches never stretch to fill the row. */
-.handwriting-color-grid {
+.justwrite-color-grid {
 	display: grid;
 	grid-template-columns: repeat(4, 22px);
 	justify-items: center;
@@ -661,14 +661,14 @@
 	padding: 4px 8px;
 }
 
-.handwriting-hex-row {
+.justwrite-hex-row {
 	display: flex;
 	align-items: center;
 	gap: 6px;
 	padding: 2px 8px 2px;
 }
 
-.handwriting-hex-preview {
+.justwrite-hex-preview {
 	width: 16px;
 	height: 16px;
 	flex: none;
@@ -676,7 +676,7 @@
 	border: 1px solid var(--background-modifier-border);
 }
 
-.handwriting-hex-input {
+.justwrite-hex-input {
 	flex: 1 1 auto;
 	width: auto;
 	min-width: 0;
@@ -691,7 +691,7 @@
 
 /* Collapsed: the strip yields to a single pill (PencilKit's move). Both
    elements always exist; classes swap which one shows. */
-.handwriting-mobile-tools.is-collapsed {
+.justwrite-mobile-tools.is-collapsed {
 	display: none;
 }
 
@@ -706,12 +706,12 @@
  * stroke or an eraser scrub that passes under the strip cannot be captured
  * by one of its buttons mid-gesture.
  */
-.handwriting-mobile-tools.is-inking,
-.handwriting-pen-pill.is-inking {
+.justwrite-mobile-tools.is-inking,
+.justwrite-pen-pill.is-inking {
 	pointer-events: none;
 }
 
-.handwriting-pen-pill {
+.justwrite-pen-pill {
 	position: absolute;
 	z-index: 12;
 	will-change: transform;
@@ -732,13 +732,13 @@
 	touch-action: manipulation;
 }
 
-.handwriting-pen-pill.is-showing {
+.justwrite-pen-pill.is-showing {
 	display: flex;
 }
 
 /* ---- chrome ---- */
 
-.handwriting-toolbar {
+.justwrite-toolbar {
 	position: absolute;
 	top: 8px;
 	left: 8px;
@@ -755,17 +755,17 @@
 	opacity: 0.9;
 }
 
-.handwriting-toolbar button {
+.justwrite-toolbar button {
 	font-size: 12px;
 	padding: 2px 8px;
 }
 
-.handwriting-toolbar button.is-active {
+.justwrite-toolbar button.is-active {
 	background: var(--interactive-accent);
 	color: var(--text-on-accent);
 }
 
-.handwriting-zoom-label {
+.justwrite-zoom-label {
 	font-size: 12px;
 	font-variant-numeric: tabular-nums;
 	color: var(--text-muted);
@@ -773,7 +773,7 @@
 }
 
 /* Pen lab diagnostics overlay */
-.handwriting-overlay {
+.justwrite-overlay {
 	position: absolute;
 	top: 8px;
 	right: 8px;
@@ -792,14 +792,14 @@
 	font-variant-numeric: tabular-nums;
 }
 
-.handwriting-mode-label {
+.justwrite-mode-label {
 	font-size: 10px;
 	color: var(--text-faint);
 	text-transform: uppercase;
 	letter-spacing: 0.04em;
 }
 
-.handwriting-status {
+.justwrite-status {
 	position: absolute;
 	bottom: 8px;
 	left: 8px;
@@ -813,7 +813,7 @@
 	opacity: 0.75;
 }
 
-.handwriting-status.is-debug {
+.justwrite-status.is-debug {
 	color: var(--text-muted);
 	background: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
@@ -825,7 +825,7 @@
 
 /* ---- pen diagnostics ---- */
 
-.handwriting-diag {
+.justwrite-diag {
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
@@ -833,19 +833,19 @@
 	overflow: hidden;
 }
 
-.handwriting-diag-help {
+.justwrite-diag-help {
 	margin: 0;
 	color: var(--text-muted);
 	font-size: 13px;
 }
 
-.handwriting-diag-controls {
+.justwrite-diag-controls {
 	display: flex;
 	gap: 6px;
 	flex-wrap: wrap;
 }
 
-.handwriting-diag-capture {
+.justwrite-diag-capture {
 	flex: 0 0 220px;
 	border: 2px dashed var(--background-modifier-border);
 	border-radius: 8px;
@@ -859,7 +859,7 @@
 	cursor: crosshair;
 }
 
-.handwriting-diag-stats {
+.justwrite-diag-stats {
 	white-space: pre;
 	font-family: var(--font-monospace);
 	font-size: 11px;
@@ -870,7 +870,7 @@
 	padding: 6px 10px;
 }
 
-.handwriting-diag-log {
+.justwrite-diag-log {
 	flex: 1 1 auto;
 	overflow-y: auto;
 	font-family: var(--font-monospace);
@@ -888,37 +888,37 @@
  * and antialiased rather than subpixel-smoothed, which is what stops
  * WebKit thinning the glyph strokes.
  */
-.is-mobile .handwriting-mobile-tool {
+.is-mobile .justwrite-mobile-tool {
 	width: 40px;
 	height: 40px;
 }
 
-.is-mobile .handwriting-diag-stats,
-.is-mobile .handwriting-diag-log {
+.is-mobile .justwrite-diag-stats,
+.is-mobile .justwrite-diag-log {
 	font-size: 13px;
 	line-height: 1.55;
 	-webkit-font-smoothing: antialiased;
 }
 
-.is-mobile .handwriting-diag-help {
+.is-mobile .justwrite-diag-help {
 	font-size: 14px;
 	color: var(--text-normal);
 }
 
-.handwriting-diag-row {
+.justwrite-diag-row {
 	white-space: pre;
 }
 
-.handwriting-diag-mark {
+.justwrite-diag-mark {
 	color: var(--text-accent);
 	font-weight: var(--font-bold);
 }
 
-.handwriting-diag-note {
+.justwrite-diag-note {
 	color: var(--text-error);
 }
 
-.handwriting-diagnostic-text {
+.justwrite-diagnostic-text {
 	display: block;
 	width: 100%;
 	min-height: min(60vh, 32rem);
@@ -932,13 +932,13 @@
  * textarea takes focus, and the report is meant to be read here as well as
  * copied out.
  */
-.is-mobile .handwriting-diagnostic-text {
+.is-mobile .justwrite-diagnostic-text {
 	font-size: 16px;
 	line-height: 1.5;
 	-webkit-font-smoothing: antialiased;
 }
 
-.handwriting-diagnostic-text-controls {
+.justwrite-diagnostic-text-controls {
 	display: flex;
 	justify-content: flex-end;
 	margin-top: var(--size-4-3);
@@ -960,24 +960,24 @@
    scroller; the ScrollAxisGuard adds this class while inline ink needs
    horizontal scroll room and removes it on unmount. The Handwriting-page
    ancestor supplies the specificity needed against theme rules. */
-.markdown-source-view.handwriting-page .cm-scroller.handwriting-hscroll-axis {
+.markdown-source-view.justwrite-page .cm-scroller.justwrite-hscroll-axis {
 	overflow-x: auto;
 }
 
-.cm-scroller.handwriting-hscroll::-webkit-scrollbar:horizontal {
+.cm-scroller.justwrite-hscroll::-webkit-scrollbar:horizontal {
 	height: 10px;
 }
-.cm-scroller.handwriting-hscroll::-webkit-scrollbar-track:horizontal {
+.cm-scroller.justwrite-hscroll::-webkit-scrollbar-track:horizontal {
 	background-color: var(--scrollbar-bg);
 }
-.cm-scroller.handwriting-hscroll::-webkit-scrollbar-thumb:horizontal {
+.cm-scroller.justwrite-hscroll::-webkit-scrollbar-thumb:horizontal {
 	background-color: var(--text-faint);
 	border-radius: 5px;
 	background-clip: padding-box;
 	border: 2px solid transparent;
 }
-.cm-scroller.handwriting-hscroll::-webkit-scrollbar-thumb:horizontal:hover,
-.cm-scroller.handwriting-hscroll::-webkit-scrollbar-thumb:horizontal:active {
+.cm-scroller.justwrite-hscroll::-webkit-scrollbar-thumb:horizontal:hover,
+.cm-scroller.justwrite-hscroll::-webkit-scrollbar-thumb:horizontal:active {
 	background-color: var(--text-muted);
 }
 
@@ -987,7 +987,7 @@
  * on the embedded backlinks section ("Linked mentions"); remove exactly
  * that line, only on Handwriting pages. The backlinks pane itself is untouched.
  */
-.workspace-leaf-content .markdown-source-view.handwriting-page .embedded-backlinks {
+.workspace-leaf-content .markdown-source-view.justwrite-page .embedded-backlinks {
 	border-top: none;
 }
 
@@ -1011,7 +1011,7 @@
  * nested scrollers' effective value changes. `!important` so no theme rule
  * on a descendant can re-open a hole. Unit-tested in GuardStyle.test.ts.
  */
-.cm-scroller.handwriting-touch-guard * {
+.cm-scroller.justwrite-touch-guard * {
 	touch-action: none !important;
 }
 
@@ -1032,7 +1032,7 @@
 .metadata-property[data-property-key="handwriting-page-id"] {
 	display: none !important;
 }
-.metadata-container.handwriting-metadata-id-only {
+.metadata-container.justwrite-metadata-id-only {
 	display: none !important;
 }
 
@@ -1045,6 +1045,6 @@
  * Handwriting page (body class managed by the plugin); every other note and
  * every other workspace state keeps it.
  */
-body.handwriting-active-page .status-bar {
+body.justwrite-active-page .status-bar {
 	display: none;
 }

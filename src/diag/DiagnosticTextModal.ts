@@ -24,7 +24,7 @@ export class DiagnosticTextModal extends Modal {
 
 	onOpen(): void {
 		this.contentEl.empty();
-		this.contentEl.addClass("handwriting-diagnostic-text-modal");
+		this.contentEl.addClass("justwrite-diagnostic-text-modal");
 		this.contentEl.createEl("h2", { text: this.heading });
 		this.contentEl.createEl("p", {
 			text: Platform.isMobileApp
@@ -32,13 +32,13 @@ export class DiagnosticTextModal extends Modal {
 				: "Press Copy, or select the text and press Ctrl+C.",
 		});
 		const field = this.contentEl.createEl("textarea", {
-			cls: "handwriting-diagnostic-text",
+			cls: "justwrite-diagnostic-text",
 			attr: { "aria-label": this.heading },
 		});
 		field.readOnly = true;
 		field.value = this.text;
 
-		const controls = this.contentEl.createDiv({ cls: "handwriting-diagnostic-text-controls" });
+		const controls = this.contentEl.createDiv({ cls: "justwrite-diagnostic-text-controls" });
 
 		const copy = controls.createEl("button", { text: "Copy", cls: "mod-cta" });
 		copy.addEventListener("click", () => {
@@ -99,7 +99,7 @@ export class DiagnosticTextModal extends Modal {
 	 * survives the modal being closed by accident.
 	 */
 	private async saveToVault(): Promise<void> {
-		const base = `handwriting-diagnostics-${stamp()}`;
+		const base = `justwrite-diagnostics-${stamp()}`;
 		try {
 			let path = `${base}.md`;
 			let n = 2;

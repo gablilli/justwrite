@@ -159,7 +159,7 @@ describe("F: create a second box, type, then undo it", () => {
 		doc.setText("tb-2", "aside");
 		expect(doc.bodyMode).toBe(false); // now it needs an anchor
 		const marked = doc.compose();
-		expect(marked).toContain("<!-- handwriting:textbox id=handwriting-body -->");
+		expect(marked).toContain("<!-- handwriting:textbox id=justwrite-body -->");
 		expect(marked).toContain("aside");
 
 		doc.removeBox("tb-2");

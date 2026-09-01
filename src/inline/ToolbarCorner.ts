@@ -63,7 +63,7 @@ export function normalizeToolbarCorner(raw: unknown): ToolbarCorner {
 
 /** The class that positions the strip and the pill. One per corner. */
 export function toolbarCornerClass(corner: ToolbarCorner): string {
-	return `handwriting-corner-${corner}`;
+	return `justwrite-corner-${corner}`;
 }
 
 /** Every class this module can apply, so a change can remove the others. */

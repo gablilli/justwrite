@@ -119,6 +119,6 @@ describe("the cursors have to be shown with a real display value", () => {
 	it("keeps the stylesheet default that made the bug possible", () => {
 		// If this rule ever goes away the empty-string form would start
 		// working by accident, which is worse than failing loudly.
-		expect(cursorCss()).toMatch(/\.handwriting-pen-cursor[\s\S]*?display:\s*none/);
+		expect(cursorCss()).toMatch(/\.justwrite-pen-cursor[\s\S]*?display:\s*none/);
 	});
 });

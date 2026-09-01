@@ -17,7 +17,7 @@ import { runDetached } from "../util/Detached";
  *
  * The layer itself is pointer-transparent: ink must be able to cross a text
  * box (§6). Only the active editor and the move handle accept pointer events,
- * and both are marked `.handwriting-ui` so the pointer router leaves them alone.
+ * and both are marked `.justwrite-ui` so the pointer router leaves them alone.
  */
 
 export interface TextBoxModel {
@@ -62,7 +62,7 @@ export class TextLayer {
 		private sourcePath: string,
 		private cb: TextLayerCallbacks
 	) {
-		this.el = parent.createDiv({ cls: "handwriting-objects" });
+		this.el = parent.createDiv({ cls: "justwrite-objects" });
 	}
 
 	get isEditing(): boolean {
@@ -105,9 +105,9 @@ export class TextLayer {
 			}
 			return;
 		}
-		const el = this.el.createDiv({ cls: "handwriting-box" });
-		const content = el.createDiv({ cls: "handwriting-box-content" });
-		const handle = el.createDiv({ cls: "handwriting-box-handle handwriting-ui" });
+		const el = this.el.createDiv({ cls: "justwrite-box" });
+		const content = el.createDiv({ cls: "justwrite-box-content" });
+		const handle = el.createDiv({ cls: "justwrite-box-handle justwrite-ui" });
 		handle.setAttribute("aria-label", "Move text box");
 		const view: BoxView = { model, el, content, editor: null, handle, rendered: null };
 		this.boxes.set(model.data.id, view);
@@ -203,7 +203,7 @@ export class TextLayer {
 		if (this.editingId && this.editingId !== id) this.endEdit();
 
 		const editor = view.el.createEl("textarea", {
-			cls: "handwriting-box-editor handwriting-ui",
+			cls: "justwrite-box-editor justwrite-ui",
 		});
 		editor.value = initialChar ? view.model.text + initialChar : view.model.text;
 		editor.spellcheck = false;

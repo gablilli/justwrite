@@ -23,8 +23,8 @@ export function nextPaperStyle(cur: PaperStyle): PaperStyle {
 
 /** The body class for a style; null for none. */
 export function paperClass(style: PaperStyle): string | null {
-	if (style === "lines") return "handwriting-paper-lines";
-	if (style === "grid") return "handwriting-paper-grid";
+	if (style === "lines") return "justwrite-paper-lines";
+	if (style === "grid") return "justwrite-paper-grid";
 	return null;
 }
 

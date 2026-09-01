@@ -9,7 +9,7 @@ import { WetInkRenderer } from "../ink/WetInkRenderer";
 import { TailRenderer } from "../ink/TailRenderer";
 import { InputPrecision, computeCanvasSize, formatRaster, inspectRaster } from "../diag/Raster";
 
-export const HANDWRITING_PEN_LAB_VIEW_TYPE = "handwriting-pen-lab";
+export const HANDWRITING_PEN_LAB_VIEW_TYPE = "justwrite-pen-lab";
 
 const MINOR_GRID_WORLD = 40;
 const MAJOR_GRID_WORLD = 200;
@@ -92,18 +92,18 @@ export class PenLabView extends ItemView {
 	async onOpen(): Promise<void> {
 		const content = this.contentEl;
 		content.empty();
-		content.addClass("handwriting-content");
+		content.addClass("justwrite-content");
 
-		this.rootEl = content.createDiv({ cls: "handwriting-root" });
+		this.rootEl = content.createDiv({ cls: "justwrite-root" });
 		this.rootEl.tabIndex = 0;
-		this.paperEl = this.rootEl.createDiv({ cls: "handwriting-paper" });
-		this.committedCanvas = this.rootEl.createEl("canvas", { cls: "handwriting-committed" });
-		this.wetCanvas = this.rootEl.createEl("canvas", { cls: "handwriting-wet" });
+		this.paperEl = this.rootEl.createDiv({ cls: "justwrite-paper" });
+		this.committedCanvas = this.rootEl.createEl("canvas", { cls: "justwrite-committed" });
+		this.wetCanvas = this.rootEl.createEl("canvas", { cls: "justwrite-wet" });
 		// Above the wet layer: the live head, redrawn every event.
-		this.headCanvas = this.rootEl.createEl("canvas", { cls: "handwriting-tail" });
+		this.headCanvas = this.rootEl.createEl("canvas", { cls: "justwrite-tail" });
 
 		this.buildToolbar();
-		this.overlayEl = this.rootEl.createDiv({ cls: "handwriting-overlay" });
+		this.overlayEl = this.rootEl.createDiv({ cls: "justwrite-overlay" });
 
 		const ctx = this.committedCanvas.getContext("2d");
 		if (!ctx) throw new Error("Handwriting: no 2d context");
@@ -150,8 +150,8 @@ export class PenLabView extends ItemView {
 	}
 
 	private buildToolbar(): void {
-		const toolbar = this.rootEl.createDiv({ cls: "handwriting-toolbar handwriting-ui" });
-		toolbar.createSpan({ cls: "handwriting-mode-label", text: "ink" });
+		const toolbar = this.rootEl.createDiv({ cls: "justwrite-toolbar justwrite-ui" });
+		toolbar.createSpan({ cls: "justwrite-mode-label", text: "ink" });
 
 		const addMode = (label: string, isActive: () => boolean, apply: () => void) => {
 			const btn = toolbar.createEl("button", { text: label });

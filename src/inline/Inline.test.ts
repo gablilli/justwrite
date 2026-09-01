@@ -110,7 +110,7 @@ describe("claimMarkdown (identity rule: the only Markdown write)", () => {
 		}
 	});
 
-	it("refuses a newer handwriting-version instead of writing", () => {
+	it("refuses a newer justwrite-version instead of writing", () => {
 		const md = "---\nhandwriting-version: 99\n---\n\nBody.\n";
 		const r = claimMarkdown(md, "pid-5");
 		expect(r.changed).toBe(false);
@@ -145,7 +145,7 @@ describe("reassignMarkdown (duplicate resolution: the copy's new identity)", () 
 		expect(r.content).toBe(md);
 	});
 
-	it("refuses a newer handwriting-version instead of writing", () => {
+	it("refuses a newer justwrite-version instead of writing", () => {
 		const md = "---\nhandwriting-page-id: shared\nhandwriting-version: 99\n---\n\nBody.\n";
 		const r = reassignMarkdown(md, "fresh");
 		expect(r.changed).toBe(false);
@@ -809,7 +809,7 @@ describe("duplicate page ids fail CLOSED, then resolve (v0.13.6)", () => {
 		store.attachHost(host);
 		await store.ensureLoaded("copy.md");
 		expect(store.strokes("copy.md")).toHaveLength(1);
-		// The user removed the handwriting-page-id line from this note by hand.
+		// The user removed the justwrite-page-id line from this note by hand.
 		store.handleDeclaimed("copy.md");
 		expect(store.strokes("copy.md")).toHaveLength(0);
 		const before = log.scheduled.length;

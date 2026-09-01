@@ -9,8 +9,8 @@ describe("paper style", () => {
 	});
 	it("classes: one per ruled style, none for none", () => {
 		expect(paperClass("none")).toBeNull();
-		expect(paperClass("lines")).toBe("handwriting-paper-lines");
-		expect(paperClass("grid")).toBe("handwriting-paper-grid");
+		expect(paperClass("lines")).toBe("justwrite-paper-lines");
+		expect(paperClass("grid")).toBe("justwrite-paper-grid");
 	});
 	it("normalizes junk to none", () => {
 		expect(normalizePaperStyle("grid")).toBe("grid");

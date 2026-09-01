@@ -25,7 +25,7 @@ export interface ClaimResult {
 	/** The id the note actually has now: ours, or the one that beat us. */
 	pageId: string;
 	changed: boolean;
-	/** Set when the file declares a newer handwriting-version; the caller must not write. */
+	/** Set when the file declares a newer justwrite-version; the caller must not write. */
 	futureVersion?: number;
 }
 
@@ -38,7 +38,7 @@ export interface ClaimResult {
  *
  * Fails closed in both directions: an UNCLAIMED note comes back unchanged
  * (reassigning must never turn into claiming, because copying an ordinary note
- * must not mutate it), and a newer handwriting-version is not written to.
+ * must not mutate it), and a newer justwrite-version is not written to.
  */
 export function reassignMarkdown(content: string, newId: string): ClaimResult {
 	const parsed = parseMarkdownPage(content);

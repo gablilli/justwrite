@@ -27,7 +27,7 @@ import { PageStore } from "../persistence/PageStore";
 import { computeCanvasSize, formatRaster, inspectRaster } from "../diag/Raster";
 import { runDetached } from "../util/Detached";
 
-export const HANDWRITING_PAGE_VIEW_TYPE = "handwriting-page";
+export const HANDWRITING_PAGE_VIEW_TYPE = "justwrite-page";
 
 const MINOR_GRID_WORLD = 40;
 const MAJOR_GRID_WORLD = 200;
@@ -60,7 +60,7 @@ export interface HandwritingHost {
 type Tool = "pen" | "highlighter" | "eraser" | "lasso";
 
 /**
- * A Handwriting page: an infinite canvas backed by a real Markdown file.
+ * A JustWrite page: an infinite canvas backed by a real Markdown file.
  *
  * Text lives in the `.md` (indexed by Obsidian, readable without the plugin);
  * geometry and ink live in `.handwriting/<page-id>.json`. The pen pipeline below is
@@ -167,7 +167,7 @@ export class HandwritingPageView extends TextFileView {
 	}
 
 	getDisplayText(): string {
-		return this.file?.basename ?? "Handwriting page";
+		return this.file?.basename ?? "JustWrite page";
 	}
 
 	getIcon(): string {
@@ -183,19 +183,23 @@ export class HandwritingPageView extends TextFileView {
 	async onOpen(): Promise<void> {
 		const content = this.contentEl;
 		content.empty();
-		content.addClass("handwriting-content");
+		content.addClass("justwrite-content");
 
-		this.rootEl = content.createDiv({ cls: "handwriting-root" });
+		this.rootEl = content.createDiv({ cls: "justwrite-root" });
 		this.rootEl.tabIndex = 0;
+		// Suppress iPad Scribble on the canvas surface. `inputmode="none"` tells
+		// WebKit this is not a text-input field, so the Scribble overlay does not
+		// intercept Pencil strokes and convert them to typed characters.
+		this.rootEl.setAttribute("inputmode", "none");
 
 		// Layer order (§6): paper, DOM objects, committed ink, wet ink,
 		// prediction tail, interaction UI. Ink sits ABOVE text so a pen can
 		// cross typed content, which is the whole OneNote model.
-		this.paperEl = this.rootEl.createDiv({ cls: "handwriting-paper" });
+		this.paperEl = this.rootEl.createDiv({ cls: "justwrite-paper" });
 		// Highlighter sits between the paper and the text, so a highlight reads
 		// as ink UNDER the words rather than a wash over them.
-		this.highlightCanvas = this.rootEl.createEl("canvas", { cls: "handwriting-highlight" });
-		this.wetHighlightCanvas = this.rootEl.createEl("canvas", { cls: "handwriting-highlight" });
+		this.highlightCanvas = this.rootEl.createEl("canvas", { cls: "justwrite-highlight" });
+		this.wetHighlightCanvas = this.rootEl.createEl("canvas", { cls: "justwrite-highlight" });
 		this.imageLayer = new ImageLayer(this.rootEl, this.app, this.file?.path ?? "");
 		this.textLayer = new TextLayer(this.rootEl, this.app, this, this.file?.path ?? "", {
 			onTextChanged: (id, text) => this.onBoxTextChanged(id, text),
@@ -203,18 +207,18 @@ export class HandwritingPageView extends TextFileView {
 			onEmptied: (id) => this.deleteBox(id, true),
 			onEditingChanged: () => this.updateStatus(),
 		});
-		this.committedCanvas = this.rootEl.createEl("canvas", { cls: "handwriting-committed" });
-		this.wetCanvas = this.rootEl.createEl("canvas", { cls: "handwriting-wet" });
-		this.tailCanvas = this.rootEl.createEl("canvas", { cls: "handwriting-tail" });
-		this.caretEl = this.rootEl.createDiv({ cls: "handwriting-caret" });
-		this.eraserEl = this.rootEl.createDiv({ cls: "handwriting-eraser-cursor" });
+		this.committedCanvas = this.rootEl.createEl("canvas", { cls: "justwrite-committed" });
+		this.wetCanvas = this.rootEl.createEl("canvas", { cls: "justwrite-wet" });
+		this.tailCanvas = this.rootEl.createEl("canvas", { cls: "justwrite-tail" });
+		this.caretEl = this.rootEl.createDiv({ cls: "justwrite-caret" });
+		this.eraserEl = this.rootEl.createDiv({ cls: "justwrite-eraser-cursor" });
 
 		this.buildToolbar();
-		this.statusEl = this.rootEl.createDiv({ cls: "handwriting-status" });
+		this.statusEl = this.rootEl.createDiv({ cls: "justwrite-status" });
 
 		const ctx = this.committedCanvas.getContext("2d");
 		const hctx = this.highlightCanvas.getContext("2d");
-		if (!ctx || !hctx) throw new Error("Handwriting: no 2d context");
+		if (!ctx || !hctx) throw new Error("JustWrite: no 2d context");
 		this.committedCtx = ctx;
 		this.highlightCtx = hctx;
 		// Frozen pen pipeline: plain canvas. A desynchronized canvas felt worse
@@ -395,7 +399,7 @@ export class HandwritingPageView extends TextFileView {
 		runDetached(
 			this.loadPage(parsed.blocks, parsed.images),
 			"load a canvas page",
-			() => new Notice("Handwriting: could not load this canvas page. See the developer console.")
+			() => new Notice("JustWrite: could not load this canvas page. See the developer console.")
 		);
 	}
 
@@ -423,7 +427,7 @@ export class HandwritingPageView extends TextFileView {
 			// whatever the damaged file still holds.
 			this.doc.spatialDamaged = true;
 			new Notice(
-				"Handwriting cannot read this page's saved ink and layout. The file has not been overwritten. The page opens read-only for ink until that file is repaired or removed."
+				"JustWrite cannot read this page's saved ink and layout. The file has not been overwritten. The page opens read-only for ink until that file is repaired or removed."
 			);
 		} else if (result?.recovered && !result.damagedKeptAs) {
 			// (The corrupt-file promotion announces itself through the
@@ -433,7 +437,7 @@ export class HandwritingPageView extends TextFileView {
 			// tmp/rename recovery worked. An earlier text reported "sidecar
 			// problem", internal vocabulary for a fault the user did not have.
 			new Notice(
-				"Handwriting recovered this note's ink from an interrupted save. Nothing was lost."
+				"JustWrite recovered this note's ink from an interrupted save. Nothing was lost."
 			);
 		}
 		if (result?.futureVersion !== undefined) {
@@ -1073,7 +1077,7 @@ export class HandwritingPageView extends TextFileView {
 	private async insertImage(file: File, wx: number, wy: number): Promise<void> {
 		if (!this.file) return;
 		if (!this.doc.markdownWritable || !this.doc.spatialWritable) {
-			new Notice("Handwriting: this page is read-only because it was written by a newer version of Handwriting.");
+			new Notice("Handwriting: this page is read-only because it was written by a newer version of JustWrite.");
 			return;
 		}
 		const bytes = await file.arrayBuffer();
@@ -1359,8 +1363,8 @@ export class HandwritingPageView extends TextFileView {
 	// ---- toolbar / status ---------------------------------------------------
 
 	private buildToolbar(): void {
-		const toolbar = this.rootEl.createDiv({ cls: "handwriting-toolbar handwriting-ui" });
-		this.zoomLabelEl = toolbar.createSpan({ cls: "handwriting-zoom-label", text: "100%" });
+		const toolbar = this.rootEl.createDiv({ cls: "justwrite-toolbar justwrite-ui" });
+		this.zoomLabelEl = toolbar.createSpan({ cls: "justwrite-zoom-label", text: "100%" });
 
 		const addTool = (label: string, isActive: () => boolean, apply: () => void) => {
 			const btn = toolbar.createEl("button", { text: label });
