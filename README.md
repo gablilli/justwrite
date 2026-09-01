@@ -1,13 +1,10 @@
-# handwriting
+# justwrite
 
-Pen ink on ordinary Markdown notes in Obsidian.
+justwrite, a fork of handwriting. designed to work on mobile and iOS flawlessly.
 
 Open a note and write. The note stays a plain `.md` file.
 
-Obsidian never really fulfilled its role of main notebook for me because of its lack of handwriting integration. Back in uni, taking notes for biochem and comp sci in onenote with pen and keyboard seamlessly on my tablet truly made me love learning.
-I wish I could've used Obsidian back then to take all my notes. I built this plugin to solve that problem retroactively
-
-Handwriting is designed for students, educators, engineers, artists, or anyone who needs to write and type in Obsidian
+justwrite is designed for students, educators, engineers, artists, or anyone who needs to write and type in Obsidian
 
 Here's a demonstration of some of the features: https://youtu.be/TUeniA9BZcc
 
@@ -82,11 +79,11 @@ Scroll down till you see this and hit the plus in upper right hand
 
 <img width="464" height="167" alt="the BRAT settings panel, with the add-plugin button in the upper right" src="https://github.com/user-attachments/assets/049f790d-7e7f-452b-94ae-36d50f06b6ae" />
 
-paste this in : ellimist-afk/handwriting > hit add plugin
+paste this in : gablilli/justwrite > hit add plugin
 
 ## required
 
-Obsidian 1.12.3 or newer. a pen, or not. built and tested mostly on a Surface Pro with a bit of testing on  an iPad. please send reports.
+Obsidian 1.12.3 or newer. a pen, or not. built for iPads.
 
 ## ipad notes
 
@@ -118,11 +115,12 @@ nothing to turn off after
 
 ## money
 
-Handwriting is free. i'm still working on it almost every night. if you want to buy me a coffee:
-https://ko-fi.com/ellimistafk
+justwrite just as handwriting is free. 
+support the original dev!
+ttps://ko-fi.com/ellimistafk
 
 thank you for using my plugin.
 
 ## license
 
-Free and open source, `AGPL-3.0-only`. No CLA, no copyright assignment
+Free and open source, forked from the latest version of handwriting as `AGPL-3.0-only`.
