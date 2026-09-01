@@ -26,6 +26,7 @@ Here's a demonstration of some of the features: https://youtu.be/TUeniA9BZcc
 * palm rejection
 * pen toolbar with auto-hide
 * pinch to zoom
+* resize strokes and highlights
 * ink prediction + smoothing
 * lined and grid paper background
 * export ink as svg
