@@ -191,10 +191,12 @@ export class HandwritingPageView extends TextFileView {
 
 		this.rootEl = content.createDiv({ cls: "justwrite-root" });
 		this.rootEl.tabIndex = 0;
-		// Suppress iPad Scribble on the canvas surface. `inputmode="none"` tells
-		// WebKit this is not a text-input field, so the Scribble overlay does not
-		// intercept Pencil strokes and convert them to typed characters.
+		// Suppress iPad Scribble on the canvas surface. Keep the root explicitly
+		// non-editable as well as inputmode=none so WebKit cannot classify the
+		// canvas as a handwriting-to-text target.
 		this.rootEl.setAttribute("inputmode", "none");
+		this.rootEl.setAttribute("contenteditable", "false");
+		this.rootEl.setAttribute("spellcheck", "false");
 
 		// Layer order (§6): paper, DOM objects, committed ink, wet ink,
 		// prediction tail, interaction UI. Ink sits ABOVE text so a pen can

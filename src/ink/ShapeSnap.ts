@@ -19,8 +19,8 @@ import { computeBBox } from "./Stroke";
 
 /** The hold that asks for a snap: this long ... */
 export const DWELL_MS = 260;
-/** ... within this world-unit radius (a few screen px). */
-export const DWELL_RADIUS = 3;
+/** ... within this world-unit radius; tolerate small Pencil hand jitter while parked. */
+export const DWELL_RADIUS = 8;
 /** Ignore flicks and dots: a snap candidate has some size to it. */
 const MIN_PATH_LENGTH = 24;
 /** Endpoints closer than this fraction of path length close the figure. */
@@ -864,12 +864,19 @@ export function snapStroke(stroke: InkStroke, dwellConfirmed = false): InkStroke
 	// the raw input layer and passes dwellConfirmed; the points-based path
 	// below survives for synthetic tests and any caller without raw timing.
 	let body: InkPoint[];
-	if (dwellConfirmed) {
+	const detectedDwellStart = dwellStart(stroke.points);
+	if (detectedDwellStart !== null) {
+		// The hold is a gesture signal, not part of the geometry. Trimming the
+		// parked tail makes a slightly wandering Pencil during the hold harmless:
+		// the recognizer sees the figure the user actually drew, not the final
+		// hand tremor.
+		body = stroke.points.slice(0, Math.max(detectedDwellStart, 2));
+	} else if (dwellConfirmed) {
+		// The raw input layer can confirm a dwell even when StrokeBuilder's
+		// distance filter retained too few stationary samples for dwellStart().
 		body = [...stroke.points];
 	} else {
-		const start = dwellStart(stroke.points);
-		if (start === null) return null;
-		body = stroke.points.slice(0, Math.max(start, 2));
+		return null;
 	}
 	if (body.length < 8) return null;
 	const len = pathLength(body);

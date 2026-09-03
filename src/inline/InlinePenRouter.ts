@@ -591,6 +591,29 @@ export class InlinePenRouter {
 			});
 		}
 
+		// iPadOS can still surface Scribble as a `beforeinput` text insertion
+		// even when inputmode=none is present. While a Pencil stroke is owned by
+		// JustWrite, reject only text insertion on this editor subtree. Keyboard
+		// typing and ordinary text editing remain untouched because the guard is
+		// active only for the duration of an owned pen contact.
+		{
+			const onBeforeInput = (ev: Event) => {
+				if (this.activePenId === null) return;
+				const target = ev.target as Node | null;
+				if (!target || !contentEl?.contains(target)) return;
+				const inputType = (ev as InputEvent).inputType;
+				if (inputType === "insertText" || inputType === "insertCompositionText") {
+					ev.preventDefault();
+					ev.stopPropagation();
+					tr("beforeinput", null, "text insertion blocked during Pencil ink stroke");
+				}
+			};
+			this.scrollEl.addEventListener("beforeinput", onBeforeInput, { capture: true });
+			this.disposers.push(() =>
+				this.scrollEl.removeEventListener("beforeinput", onBeforeInput, { capture: true })
+			);
+		}
+
 		// Everything is CAPTURE phase: the scroller is the content element's
 		// parent, so these run before any CodeMirror handler regardless of
 		// registration order. Non-pen events (and pen hover) fall straight

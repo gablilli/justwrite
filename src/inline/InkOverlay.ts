@@ -1982,7 +1982,7 @@ class InkOverlayPlugin {
 		let accepted = 0;
 		let lastAccepted: { x: number; y: number } | undefined;
 		for (const s of samples) {
-			if (Math.hypot(s.x - this.rawLastMoveX, s.y - this.rawLastMoveY) > 4) {
+			if (Math.hypot(s.x - this.rawLastMoveX, s.y - this.rawLastMoveY) > 8) {
 				this.rawLastMoveT = s.timestamp;
 				this.rawLastMoveX = s.x;
 				this.rawLastMoveY = s.y;
@@ -2022,13 +2022,20 @@ class InkOverlayPlugin {
 		metrics.recordAccepted(accepted);
 		metrics.recordDraw(drawEnd - drawStart, drawEnd - newestTs);
 
-		// Live raw head, exactly as the approved pipeline draws it.
-		this.tail.clear();
-		const head = this.activeWet.head();
-		if (head) this.tail.drawHead(cam, this.activeStyle, head.from, head.to, head.pressure);
+		// The tail canvas is only needed for the live smoothed head and/or
+		// prediction. In raw mode there is nothing transient to repaint here:
+		// the wet canvas already reaches the newest accepted point. Avoiding a
+		// clearRect + head stroke on every 200+ Hz raw event removes needless
+		// main-thread work from the latency path.
+		const liveHead = smoothInkOn || predictionEnabled();
+		if (liveHead) {
+			this.tail.clear();
+			const head = this.activeWet.head();
+			if (head) this.tail.drawHead(cam, this.activeStyle, head.from, head.to, head.pressure);
+		}
 		// The predicted tail goes on the same canvas, after the head, so the
-		// one `clear()` above erases both: its dirty rect covers whatever was
-		// drawn last event, whether that was real or a guess.
+		// clear above erases both: its dirty rect covers whatever was drawn last
+		// event, whether that was real or a guess.
 		if (predictionEnabled()) {
 			this.predReal.push(...samples);
 			if (this.predReal.length > PRED_HISTORY) {

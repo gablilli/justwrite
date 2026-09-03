@@ -71,6 +71,40 @@ function noisyRect(x: number, y: number, w: number, h: number): InkPoint[] {
 }
 
 describe("dwellStart", () => {
+	it("allows small Pencil drift while parked", () => {
+		const body = Array.from({ length: 30 }, (_, i) => ({
+			x: i * 5,
+			y: 0,
+			pressure: 0.4,
+			t: i * 10,
+		}));
+		const last = body[body.length - 1]!;
+		const pts = [
+			...body,
+			{ x: last.x + 6.5, y: last.y + 2, pressure: 0.4, t: last.t + 80 },
+			{ x: last.x + 7.5, y: last.y + 1, pressure: 0.4, t: last.t + 160 },
+			{ x: last.x + 6, y: last.y + 2, pressure: 0.4, t: last.t + DWELL_MS },
+		];
+		expect(dwellStart(pts)).not.toBe(null);
+	});
+
+	it("does not mistake a real move for a hold", () => {
+		const body = Array.from({ length: 30 }, (_, i) => ({
+			x: i * 5,
+			y: 0,
+			pressure: 0.4,
+			t: i * 10,
+		}));
+		const last = body[body.length - 1]!;
+		const pts = [
+			...body,
+			{ x: last.x + 12, y: 0, pressure: 0.4, t: last.t + 80 },
+			{ x: last.x + 12, y: 0, pressure: 0.4, t: last.t + 160 },
+			{ x: last.x + 12, y: 0, pressure: 0.4, t: last.t + DWELL_MS },
+		];
+		expect(dwellStart(pts)).toBe(null);
+	});
+
 	it("a stroke that ends moving has no dwell", () => {
 		const pts: InkPoint[] = [];
 		for (let i = 0; i < 40; i++) pts.push({ x: i * 5, y: 0, pressure: 0.4, t: i * 10 });
