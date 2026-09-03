@@ -81,6 +81,15 @@ export function dwellStart(points: readonly InkPoint[]): number | null {
 	if (i < 4) return null; // all (or nearly all) dwell: that is a dot
 	const tail = points.slice(i);
 	if ((points[points.length - 1]!.t - tail[0]!.t) < DWELL_MS * 0.8) return null;
+	// The tail's bounding-box spread alone is not enough: a real move can
+	// jump 12px and then remain perfectly still, producing a zero-width tail
+	// and being mistaken for a dwell. Measure displacement from the point
+	// where the dwell window begins as well. Small Pencil drift is allowed,
+	// but crossing the radius means the pen was still moving into position.
+	const anchor = tail[0]!;
+	for (const p of tail) {
+		if (dist(anchor, p) > DWELL_RADIUS) return null;
+	}
 	let minX = Infinity;
 	let minY = Infinity;
 	let maxX = -Infinity;
