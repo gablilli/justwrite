@@ -361,6 +361,14 @@ const OWNED_NATIVE_EVENTS = [
 /** Trailing window after pen-up in which click/contextmenu fallout still lands. */
 const OWNERSHIP_TAIL_MS = 350;
 
+/**
+ * Scribble can commit its transcription slightly AFTER pointerup. Keep a
+ * separate, editor-scoped text-input quarantine for that late commit. It is
+ * deliberately cleared by the next real keyboard/touch interaction, so this
+ * does not make the editor feel keyboard-dead after writing with Pencil.
+ */
+const SCRIBBLE_TAIL_MS = 1200;
+
 /** Pure decision, unit-tested: does Handwriting own native fallout right now? */
 export function ownsNativeFallout(opts: {
 	activeStroke: boolean;
@@ -527,6 +535,8 @@ export class InlinePenRouter {
 	private lastPenHoverY = Number.NEGATIVE_INFINITY;
 	private lastHoverTraceAt = Number.NEGATIVE_INFINITY;
 	private lastHoverButtons = -1;
+	private scribbleBlockUntil = Number.NEGATIVE_INFINITY;
+	private scribbleBlockTimer: number | null = null;
 
 	penDowns = 0;
 	penUps = 0;
@@ -591,27 +601,84 @@ export class InlinePenRouter {
 			});
 		}
 
-		// iPadOS can still surface Scribble as a `beforeinput` text insertion
-		// even when inputmode=none is present. While a Pencil stroke is owned by
-		// JustWrite, reject only text insertion on this editor subtree. Keyboard
-		// typing and ordinary text editing remain untouched because the guard is
-		// active only for the duration of an owned pen contact.
+		// iPadOS can surface Scribble as composition/text input even when
+		// inputmode="none" is present. The important detail is that the final
+		// transcription may arrive AFTER pointerup, so checking only
+		// activePenId (the old implementation) leaves a race: our ink is already
+		// committed, then WebKit commits the second, text layer.
+		//
+		// Quarantine is WINDOW-capture and editor-scoped. This is earlier than
+		// CodeMirror's document handlers, and the short post-pen tail catches the
+		// delayed Scribble commit. A real keyboard/touch interaction clears the
+		// quarantine first, so normal text editing remains available.
 		{
-			const onBeforeInput = (ev: Event) => {
-				if (this.activePenId === null) return;
+			const isEditorTarget = (ev: Event): boolean => {
 				const target = ev.target as Node | null;
-				if (!target || !contentEl?.contains(target)) return;
-				const inputType = (ev as InputEvent).inputType;
-				if (inputType === "insertText" || inputType === "insertCompositionText") {
-					ev.preventDefault();
-					ev.stopPropagation();
-					tr("beforeinput", null, "text insertion blocked during Pencil ink stroke");
+				return !!target && !!contentEl?.contains(target);
+			};
+			const clearScribbleBlock = () => {
+				this.scribbleBlockUntil = Number.NEGATIVE_INFINITY;
+				if (this.scribbleBlockTimer !== null) {
+					this.winRef.clearTimeout(this.scribbleBlockTimer);
+					this.scribbleBlockTimer = null;
 				}
 			};
-			this.scrollEl.addEventListener("beforeinput", onBeforeInput, { capture: true });
-			this.disposers.push(() =>
-				this.scrollEl.removeEventListener("beforeinput", onBeforeInput, { capture: true })
-			);
+			const blockScribble = () => {
+				this.scribbleBlockUntil = performance.now() + SCRIBBLE_TAIL_MS;
+				if (this.scribbleBlockTimer !== null) this.winRef.clearTimeout(this.scribbleBlockTimer);
+				this.scribbleBlockTimer = this.winRef.setTimeout(() => {
+					this.scribbleBlockTimer = null;
+					this.scribbleBlockUntil = Number.NEGATIVE_INFINITY;
+				}, SCRIBBLE_TAIL_MS + 50);
+			};
+			const onBeforeInput = (ev: Event) => {
+				if (!isEditorTarget(ev)) return;
+				const inputType = (ev as InputEvent).inputType;
+				if (
+					(inputType === "insertText" || inputType === "insertCompositionText") &&
+					performance.now() < this.scribbleBlockUntil
+				) {
+					ev.preventDefault();
+					ev.stopPropagation();
+					tr("beforeinput", null, "Scribble text commit blocked; Pencil owns the stroke");
+				}
+			};
+			const onComposition = (ev: Event) => {
+				if (!isEditorTarget(ev) || performance.now() >= this.scribbleBlockUntil) return;
+				ev.preventDefault();
+				ev.stopPropagation();
+				tr(ev.type, null, "Scribble composition blocked; Pencil owns the stroke");
+			};
+			const onKeyboard = (ev: Event) => {
+				if (isEditorTarget(ev) && performance.now() < this.scribbleBlockUntil) clearScribbleBlock();
+			};
+			const onTouch = (ev: Event) => {
+				if (isEditorTarget(ev)) clearScribbleBlock();
+			};
+			const onPenPointer = (ev: Event) => {
+				const pe = ev as PointerEvent;
+				if (pe.pointerType === "pen" && isEditorTarget(ev)) blockScribble();
+			};
+			const w = this.winRef;
+			w.addEventListener("beforeinput", onBeforeInput, { capture: true });
+			for (const type of ["compositionstart", "compositionupdate", "compositionend"]) {
+				w.addEventListener(type, onComposition, { capture: true });
+			}
+			w.addEventListener("keydown", onKeyboard, { capture: true });
+			w.addEventListener("touchstart", onTouch, { capture: true, passive: true });
+			w.addEventListener("pointerdown", onPenPointer, { capture: true });
+			w.addEventListener("pointermove", onPenPointer, { capture: true });
+			this.disposers.push(() => {
+				w.removeEventListener("beforeinput", onBeforeInput, { capture: true });
+				for (const type of ["compositionstart", "compositionupdate", "compositionend"]) {
+					w.removeEventListener(type, onComposition, { capture: true });
+				}
+				w.removeEventListener("keydown", onKeyboard, { capture: true });
+				w.removeEventListener("touchstart", onTouch, { capture: true });
+				w.removeEventListener("pointerdown", onPenPointer, { capture: true });
+				w.removeEventListener("pointermove", onPenPointer, { capture: true });
+				clearScribbleBlock();
+			});
 		}
 
 		// Everything is CAPTURE phase: the scroller is the content element's
@@ -1669,6 +1736,7 @@ export class InlinePenRouter {
 	private endPenStroke(e: PointerEvent, viaFallback: boolean): void {
 		if (this.activePenId === null || e.pointerId !== this.activePenId) return;
 		this.activePenId = null;
+		this.scribbleBlockUntil = performance.now() + SCRIBBLE_TAIL_MS;
 		this.penUps++;
 		telemetry.bump("inline.penUp");
 		if (viaFallback) {
